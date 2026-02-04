@@ -25,3 +25,13 @@ export class InvalidModuleStateError extends ModuleError {
         this.name = 'InvalidModuleStateError'
     }
 }
+
+export class ModuleLifecycleError extends ModuleError {
+  constructor(moduleId: string, action: string, reason?: string) {
+    super(
+      `Module '${moduleId}' failed during '${action}'` +
+      (reason ? `: ${reason}` : '')
+    )
+    this.name = 'ModuleLifecycleError'
+  }
+}
