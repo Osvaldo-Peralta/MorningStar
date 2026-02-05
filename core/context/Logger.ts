@@ -1,3 +1,4 @@
+// core/context/Logger.ts
 export interface Logger {
     debug(message: string, meta?: unknown): void
     info(message: string, meta?: unknown): void

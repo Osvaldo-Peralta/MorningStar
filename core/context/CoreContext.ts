@@ -1,3 +1,4 @@
+// core/context/CoreContext.ts
 import type { EventBus } from "./EventBus"
 import type { Storage } from "./Storage"
 import type { Permissions } from "./Permission"

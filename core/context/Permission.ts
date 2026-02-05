@@ -1,3 +1,4 @@
+// core/context/Permission.ts
 export type Permission = 
 | "filesystem"
 | "network"

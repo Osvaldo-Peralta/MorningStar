@@ -1,3 +1,4 @@
+// core/module/ModuleRegistry.ts
 import { AppModule } from './AppModule'
 import { ModuleState } from './ModuleState'
 import {
@@ -7,6 +8,7 @@ import {
   ModuleLifecycleError
 } from './errors'
 import { CoreContext } from '../context/CoreContext'
+import { ModuleEvents } from '../context/events'
 
 export class ModuleRegistry {
   private readonly modules = new Map<string, AppModule>()
@@ -20,6 +22,9 @@ export class ModuleRegistry {
 
     module.state = ModuleState.Registered
     this.modules.set(module.id, module)
+    this.context.events.emit(ModuleEvents.REGISTERED, {
+      moduleId: module.id
+    })
   }
 
   get(moduleId: string): AppModule {
@@ -40,7 +45,16 @@ export class ModuleRegistry {
     try {
       await module.init(this.context)
       module.state = ModuleState.Initialized
+      this.context.events.emit(ModuleEvents.INITIALIZED, {
+        moduleId
+      })
     } catch (error) {
+      // Eventualmente implementar este catch para el resto
+        this.context.events.emit(ModuleEvents.ERROR, {
+        moduleId,
+        action: 'init',
+        error
+      })
       throw new ModuleLifecycleError(moduleId, 'init', String(error))
     }
   }
@@ -58,8 +72,15 @@ export class ModuleRegistry {
     try {
       await module.activate()
       module.state = ModuleState.Active
+      this.context.events.emit(ModuleEvents.ACTIVATED, {
+        moduleId
+      })
     } catch (error) {
-      throw new ModuleLifecycleError(moduleId, 'activate', String(error))
+      this.context.events.emit(ModuleEvents.ERROR, {
+        moduleId,
+        action: 'activate',
+        error
+      })
     }
   }
 
@@ -73,8 +94,15 @@ export class ModuleRegistry {
     try {
       await module.deactivate()
       module.state = ModuleState.Inactive
+      this.context.events.emit(ModuleEvents.DEACTIVATED, {
+        moduleId
+      })
     } catch (error) {
-      throw new ModuleLifecycleError(moduleId, 'deactivate', String(error))
+      this.context.events.emit(ModuleEvents.ERROR, {
+        moduleId,
+        action: 'deactivate',
+        error
+      })
     }
   }
 
@@ -92,8 +120,15 @@ export class ModuleRegistry {
       await module.dispose()
       module.state = ModuleState.Disposed
       this.modules.delete(moduleId)
+      this.context.events.emit(ModuleEvents.DISPOSED, {
+        moduleId
+      })
     } catch (error) {
-      throw new ModuleLifecycleError(moduleId, 'dispose', String(error))
+      this.context.events.emit(ModuleEvents.ERROR, {
+        moduleId,
+        action: 'dispose',
+        error
+      })
     }
   }
 
