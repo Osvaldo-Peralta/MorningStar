@@ -81,6 +81,7 @@ export class ModuleRegistry {
         action: 'activate',
         error
       })
+      throw new ModuleLifecycleError(moduleId, 'activate', String(error))
     }
   }
 
@@ -103,6 +104,7 @@ export class ModuleRegistry {
         action: 'deactivate',
         error
       })
+      throw new ModuleLifecycleError(moduleId, 'deactivate', String(error))
     }
   }
 
@@ -129,6 +131,7 @@ export class ModuleRegistry {
         action: 'dispose',
         error
       })
+      throw new ModuleLifecycleError(moduleId, 'dispose', String(error))
     }
   }
 
