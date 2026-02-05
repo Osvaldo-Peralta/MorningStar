@@ -1,3 +1,4 @@
+// core/module/ModuleState.ts
 export enum ModuleState {
     Registered = 'registered',
     Initialized = 'initialized',

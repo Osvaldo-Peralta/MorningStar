@@ -1,3 +1,4 @@
+// core/module/ModuleRegistry.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ModuleRegistry } from './ModuleRegistry'
 import { ModuleState } from './ModuleState'
@@ -5,14 +6,14 @@ import {
   ModuleAlreadyRegisteredError,
   InvalidModuleStateError
 } from './errors'
-import { createMockeCoreContext } from './__mocks__/coreContext'
+import { createMockCoreContext } from './__mocks__/mockCoreContext'
 import { createMockModule } from './__mocks__/mockModule'
 
 describe('ModuleRegistry', () => {
   let registry: ModuleRegistry
 
   beforeEach(() => {
-    registry = new ModuleRegistry(createMockeCoreContext())
+    registry = new ModuleRegistry(createMockCoreContext())
   })
 
   it('registers a module correctly', () => {

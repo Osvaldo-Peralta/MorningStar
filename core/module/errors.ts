@@ -1,3 +1,4 @@
+// core/module/errors.ts
 export class ModuleError extends Error {
     constructor(message: string) {
         super(message)

@@ -1,15 +1,16 @@
+// core/module/ModuleRegistry.lifecycle.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { ModuleRegistry } from './ModuleRegistry'
 import { ModuleState } from './ModuleState'
 import { ModuleLifecycleError } from './errors'
-import { createMockeCoreContext } from './__mocks__/coreContext'
+import { createMockCoreContext } from './__mocks__/mockCoreContext'
 import { createMockModule } from './__mocks__/mockModule'
 
 describe('ModuleRegistry lifecycle failures', () => {
   let registry: ModuleRegistry
 
   beforeEach(() => {
-    registry = new ModuleRegistry(createMockeCoreContext())
+    registry = new ModuleRegistry(createMockCoreContext())
   })
 
   it('keeps state when init fails', async () => {
