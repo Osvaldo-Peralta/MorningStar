@@ -1,13 +1,10 @@
-export type EventHandler<T> = (payload: T) => void
+// core/context/EventBus.ts
+export type EventHandler<T = unknown> = (payload: T) => void
 
-export interface EventBus<EventMap = any> {
-    emit<K extends keyof EventMap>(
-        event: K,
-        payload: EventMap[K]
-    ): void
-
-    on<K extends keyof EventMap> (
-        event: K,
-        handler: EventHandler<EventMap[K]>
-    ): () => void
+export interface EventBus {
+    emit<T = unknown>(event: string, payload: T): void
+    on<T = unknown>(event: string, handler: EventHandler<T>): void
+    off<T = unknown>(event: string, handler: EventHandler<T>): void
 }
+
+// Implementaciones intercambiables (in-memory hoy, IPC mañana)

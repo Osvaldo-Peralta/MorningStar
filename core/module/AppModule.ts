@@ -1,3 +1,4 @@
+// core/module/AppModule.ts
 import { ModuleMetadata } from './ModuleMetadata'
 import { ModuleLifecycle } from './ModuleLifecycle'
 

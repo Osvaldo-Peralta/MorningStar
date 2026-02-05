@@ -1,3 +1,4 @@
+// core/module/index.ts
 export * from './AppModule'
 export * from './ModuleLifecycle'
 export * from './ModuleMetadata'
