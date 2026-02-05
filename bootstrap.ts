@@ -10,9 +10,9 @@ async function bootstrap() {
     permission: {} as any,
     logger: console,
     config: {
-      enviroment: 'test',
-      version: '0.1.0'
-    }
+      environment: 'test',
+      version: '0.1.0',
+    },
   }
 
   const registry = new ModuleRegistry(context)
@@ -23,8 +23,12 @@ async function bootstrap() {
   await registry.init(photoFeed.id)
   await registry.activate(photoFeed.id)
 
-  photoFeed.addPhoto('https://example.com/photo1.jpg')
-  console.log(photoFeed.listPhotos())
+  const service = photoFeed.getService()
+
+  service.addPhoto('https://example.com/photo1.jpg')
+  service.addPhoto('https://example.com/photo2.jpg')
+
+  console.log(service.listPhotos())
 }
 
 bootstrap().catch(err => {

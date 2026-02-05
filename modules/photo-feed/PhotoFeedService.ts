@@ -1,15 +1,35 @@
-export class PhotoFeedModule {
-    private photos: string[] = []
+import { EventBus } from '../../core/context/EventBus'
+import { PHOTO_FEED_EVENTS, PhotoCreatedPayload } from './events'
+import { Photo } from './types'
 
-    add(photoUrl: string): void {
-        this.photos.push(photoUrl)
+export class PhotoFeedService {
+  private photos: Photo[] = []
+
+  constructor(private readonly eventBus: EventBus) {}
+
+  addPhoto(photoId: string): Photo {
+    const photo: Photo = {
+      id: photoId,
+      createdAt: Date.now(),
     }
 
-    list(): string[] {
-        return[...this.photos]
+    this.photos.push(photo)
+
+    const payload: PhotoCreatedPayload = {
+      photoId: photo.id,
+      createdAt: photo.createdAt,
     }
 
-    clear(): void {
-        this.photos = []
-    }
+    this.eventBus.emit(PHOTO_FEED_EVENTS.PHOTO_CREATED, payload)
+
+    return photo
+  }
+
+  listPhotos(): string[] {
+    return this.photos.map(p => p.id)
+  }
+
+  clear() {
+    this.photos = []
+  }
 }

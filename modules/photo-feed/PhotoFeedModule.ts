@@ -1,43 +1,37 @@
-// modules/photo-feed/PhotoFeedModule.ts
-import { AppModule, ModuleState } from "../../core/module";
-import { CoreContext } from "../../core/context/CoreContext";
+import { AppModule } from '../../core/module'
+import { CoreContext } from '../../core/context/CoreContext'
+import { ModuleState } from '../../core/module/ModuleState'
+import { PhotoFeedService } from './PhotoFeedService'
 
 export class PhotoFeedModule implements AppModule {
-    readonly id = 'photo-feed'
-    readonly version: '0.1.0'
-    state = ModuleState.Registered
+  readonly id = 'photo-feed'
+  readonly version = '0.1.0'
+  state = ModuleState.Registered
 
-    private context!: CoreContext
-    private photos: string[] = []
+  private service?: PhotoFeedService
 
-    init(context: CoreContext): void | Promise<void> {
-        this.context = context
-        this.context.logger.info('[PhotoFeed] Initialized')
+  async init(context: CoreContext): Promise<void> {
+    this.service = new PhotoFeedService(context.events)
+  }
 
-        // Ejemplo de como cargar un estado inicial desde 'storage'
-        // por ahora será un dummy
-        this.photos = []
+  async activate(): Promise<void> {
+    // listo para operar
+  }
+
+  async deactivate(): Promise<void> {
+    // no-op por ahora
+  }
+
+  async dispose(): Promise<void> {
+    this.service?.clear()
+    this.service = undefined
+  }
+
+  /** API pública del módulo */
+  getService(): PhotoFeedService {
+    if (!this.service) {
+      throw new Error('PhotoFeedModule not initialized')
     }
-
-    activate(): void | Promise<void> {
-        this.context.logger.info('[PhotoFeed] activated')
-    }
-
-    deactivate(): void | Promise<void> {
-        this.context.logger.info('[PhotoFeed] deactivate')
-    }
-
-    dispose(): void | Promise<void> {
-        this.context.logger.info('[PhotoFeed] dispose')
-    }
-
-    // --- API publica del modulo ---
-    addPhoto(photoUrl: string): void {
-        this.photos.push(photoUrl)
-        this.context.logger.info('[PhotoFeed] photo added', photoUrl)
-    }
-
-    listPhotos(): string[] {
-        return [...this.photos]
-    }
+    return this.service
+  }
 }
