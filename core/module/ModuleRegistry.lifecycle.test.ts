@@ -15,7 +15,7 @@ describe('ModuleRegistry lifecycle failures', () => {
 
   it('keeps state when init fails', async () => {
     const module = createMockModule()
-    module.init = vi.fn(() => {
+    module.init = vi.fn( async () => {
       throw new Error('init failed')
     })
 
@@ -30,7 +30,7 @@ describe('ModuleRegistry lifecycle failures', () => {
 
   it('keeps state when activate fails', async () => {
     const module = createMockModule()
-    module.activate = vi.fn(() => {
+    module.activate = vi.fn(async () => {
       throw new Error('activate failed')
     })
 
@@ -46,7 +46,7 @@ describe('ModuleRegistry lifecycle failures', () => {
 
   it('keeps state when deactivate fails', async () => {
     const module = createMockModule()
-    module.deactivate = vi.fn(() => {
+    module.deactivate = vi.fn(async () => {
       throw new Error('deactivate failed')
     })
 
@@ -63,7 +63,7 @@ describe('ModuleRegistry lifecycle failures', () => {
 
   it('does not dispose module when dispose fails', async () => {
     const module = createMockModule()
-    module.dispose = vi.fn(() => {
+    module.dispose = vi.fn(async () => {
       throw new Error('dispose failed')
     })
 

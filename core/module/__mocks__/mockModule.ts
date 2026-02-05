@@ -1,5 +1,5 @@
-// core/module/__mocks__/mockModule.ts
-import { AppModule, ModuleState } from '../index'
+import { AppModule } from '../AppModule'
+import { ModuleState } from '../ModuleState'
 import { CoreContext } from '../../context/CoreContext'
 
 export const createMockModule = (id = 'test-module'): AppModule => ({
@@ -7,8 +7,8 @@ export const createMockModule = (id = 'test-module'): AppModule => ({
   version: '1.0.0',
   state: ModuleState.Registered,
 
-  init: (_ctx: CoreContext) => {},
-  activate: () => {},
-  deactivate: () => {},
-  dispose: () => {}
+  init: async (_context: CoreContext) => {},
+  activate: async () => {},
+  deactivate: async () => {},
+  dispose: async () => {}
 })
