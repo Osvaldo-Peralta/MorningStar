@@ -1,0 +1,1 @@
+export { PhotoFeedModule } from './PhotoFeedModule'
