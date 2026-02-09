@@ -19,7 +19,7 @@ export class RuntimeLoggerModule implements AppModule {
     this.handler = (event: SystemEvent) => {
       try {
         // Filtrado mínimo (módulo pasivo)
-        if (event.category !== 'lifecycle' && event.category !== 'error') {
+        if (event.category !== 'lifecycle' && event.category !== 'error' && event.category !== 'domain') {
           return
         }
 
@@ -29,9 +29,18 @@ export class RuntimeLoggerModule implements AppModule {
         // 3️⃣ Información básica
         const category = event.category.toUpperCase()
         const name = event.name
-        const source = event.source?.moduleId
-          ? ` source=${event.source.moduleId}`
-          : ''
+
+        const sourceParts: string[] = []
+        if (event.source?.moduleId) {
+          sourceParts.push(`module=${event.source.moduleId}`)
+        }
+        if ((event.source as any)?.entity) {
+          sourceParts.push(`entity=${(event.source as any).entity}`)
+        }
+
+        const source = sourceParts.length
+        ? ` ${sourceParts.join(' ')}`
+        : ''
 
         // Payload seguro
         let payload = ''
