@@ -1,3 +1,4 @@
+// modules/photo-feed/PhotoFeedModule.test.ts
 import { describe, it, expect } from 'vitest'
 import { PhotoFeedModule } from './PhotoFeedModule'
 import { ModuleRegistry } from '../../core/module/ModuleRegistry'

@@ -1,3 +1,4 @@
+// modules/photo-feed/PhotoFeedService.ts
 import { EventBus } from '../../core/context/EventBus'
 import { PHOTO_FEED_EVENTS, PhotoCreatedPayload } from './events'
 import { Photo } from './types'

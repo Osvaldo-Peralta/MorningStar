@@ -1,3 +1,4 @@
+// modules/photo-feed/PhotoFeedModule.ts
 import { AppModule } from '../../core/module'
 import { CoreContext } from '../../core/context/CoreContext'
 import { ModuleState } from '../../core/module/ModuleState'

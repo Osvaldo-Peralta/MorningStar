@@ -1,7 +1,9 @@
+// bootstrap.ts -> Esta en la raiz del proyecto, al nivel de core, modules, .gitignore, etc
 import { ModuleRegistry } from './core/module/ModuleRegistry'
 import { InMemoryEventBus } from './core/context/InMemoryEventBus'
 import { PhotoFeedModule } from './modules/photo-feed'
 import { CoreContext } from './core/context/CoreContext'
+import { RuntimeLoggerModule } from './modules/runtime-logger/RuntimeLoggerModule'
 
 async function bootstrap() {
   const context: CoreContext = {
@@ -16,6 +18,12 @@ async function bootstrap() {
   }
 
   const registry = new ModuleRegistry(context)
+  // RuntimeLogger, para observabilidad (pasivo)
+  const runtimeLogger = new RuntimeLoggerModule()
+
+  registry.register(runtimeLogger)
+  await registry.init(runtimeLogger.id)
+  await registry.activate(runtimeLogger.id)
 
   const photoFeed = new PhotoFeedModule()
 
