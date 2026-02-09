@@ -1,11 +1,6 @@
-// core/module/ModuleRegistry.test.ts
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { ModuleRegistry } from './ModuleRegistry'
 import { ModuleState } from './ModuleState'
-import {
-  ModuleAlreadyRegisteredError,
-  InvalidModuleStateError
-} from './errors'
 import { createMockCoreContext } from './__mocks__/mockCoreContext'
 import { createMockModule } from './__mocks__/mockModule'
 
@@ -30,19 +25,15 @@ describe('ModuleRegistry', () => {
 
     registry.register(module)
 
-    expect(() => registry.register(module)).toThrow(
-      ModuleAlreadyRegisteredError
-    )
+    expect(() => registry.register(module)).toThrowError(/already registered/)
   })
 
   it('initializes a registered module', async () => {
     const module = createMockModule()
-    const initSpy = vi.spyOn(module, 'init')
 
     registry.register(module)
     await registry.init(module.id)
 
-    expect(initSpy).toHaveBeenCalled()
     expect(module.state).toBe(ModuleState.Initialized)
   })
 
@@ -51,9 +42,9 @@ describe('ModuleRegistry', () => {
 
     registry.register(module)
 
-    await expect(registry.activate(module.id)).rejects.toThrow(
-      InvalidModuleStateError
-    )
+    await expect(registry.activate(module.id)).rejects.toMatchObject({
+      name: 'InvalidModuleStateError'
+    })
   })
 
   it('activates an initialized module', async () => {

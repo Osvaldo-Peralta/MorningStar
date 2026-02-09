@@ -8,3 +8,4 @@ export interface EventBus {
 }
 
 // Implementaciones intercambiables (in-memory hoy, IPC mañana)
+// EventBus es el contrato publico usado por: modulos, tests, bootstrap
