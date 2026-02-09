@@ -1,3 +1,4 @@
+// core/module/__mocks__/mockCoreContext.ts
 import { InMemoryEventBus } from '../../context/InMemoryEventBus'
 import type { CoreContext } from '../../context/CoreContext'
 import type { Permissions } from '../../context/Permission'
@@ -29,7 +30,7 @@ export const createMockCoreContext = (): CoreContext => ({
   permission: mockPermissions,
   logger: mockLogger,
   config: {
-    enviroment: 'test',
+    environment: 'test',
     version: '0.0.0'
   }
 })
