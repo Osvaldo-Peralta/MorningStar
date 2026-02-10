@@ -31,12 +31,10 @@ async function bootstrap() {
   await registry.init(photoFeed.id)
   await registry.activate(photoFeed.id)
 
-  const service = photoFeed.getService()
+  photoFeed.addPhoto('https://example.com/photo1.jpg')
+  photoFeed.addPhoto('https://example.com/photo2.jpg')
 
-  service.addPhoto('https://example.com/photo1.jpg')
-  service.addPhoto('https://example.com/photo2.jpg')
-
-  console.log(service.listPhotos())
+  console.log(photoFeed.listPhotos())
 }
 
 bootstrap().catch(err => {

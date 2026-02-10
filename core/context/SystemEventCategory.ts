@@ -3,6 +3,11 @@ export type SystemEventCategory =
 | 'domain'
 | 'error'
 
+export type SystemEventSource = {
+    moduleId: string
+    [key: string]: unknown
+}
+
 export interface SystemEvent<T = unknown> {
     // Nombre semantico del evento
     name: string
@@ -14,9 +19,7 @@ export interface SystemEvent<T = unknown> {
     category: SystemEventCategory
 
     // Origin logico del evento
-    source?: {
-        moduleId: string
-    }
+    source?: SystemEventSource
 
     // Datos del dominio (indistinguible para core)
     payload?: T
