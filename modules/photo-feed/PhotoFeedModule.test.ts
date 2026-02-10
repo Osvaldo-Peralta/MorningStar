@@ -15,11 +15,10 @@ describe('PhotoFeedModule', () => {
     await registry.init(module.id)
     await registry.activate(module.id)
 
-    const service = module.getService()
+    module.addPhoto('photo-1')
+    module.addPhoto('photo-2')
+    const photos = module.listPhotos()
 
-    service.addPhoto('photo-1')
-    service.addPhoto('photo-2')
-
-    expect(service.listPhotos()).toEqual(['photo-1', 'photo-2'])
+    expect(photos).toEqual(['photo-1', 'photo-2'])
   })
 })
