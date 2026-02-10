@@ -1,7 +1,7 @@
 import { AppModule } from '../../core/module'
 import { CoreContext } from '../../core/context/CoreContext'
 import { ModuleState } from '../../core/module/ModuleState'
-import { PhotoFeedService } from './PhotoFeedService'
+import { PhotoFeedService } from './domain/PhotoFeedService'
 
 export class PhotoFeedModule implements AppModule {
   readonly id = 'photo-feed'
