@@ -1,4 +1,4 @@
-// modules/photo-feed/PhotoFeedService.ts
+// modules/photo-feed/domain/PhotoFeedService.ts
 import { nanoid } from 'nanoid'
 import { EditPhotoInput } from './EditPhotoInput'
 import { PhotoChanges } from './PhotoChanges'
@@ -6,38 +6,58 @@ import { Photo } from './Photo'
 
 export class PhotoFeedService {
   private photos: Photo[] = []
-/* --- Add Photo --- */
+
+  /* --- Commands --- */
+
   addPhoto(url: string): Photo {
     const photo: Photo = {
       id: nanoid(),
       url,
-      createdAt: Date.now()
+      createdAt: Date.now(),
     }
+
     this.photos.push(photo)
     return photo
   }
 
-/* --- Edit Photo --- */
-  editPhoto(photo: Photo, input: EditPhotoInput): {updatedPhoto: Photo, changes: PhotoChanges} {
+  editPhoto(
+    photoId: string,
+    input: EditPhotoInput
+  ): { updatedPhoto: Photo; changes: PhotoChanges } {
+    const index = this.photos.findIndex(p => p.id === photoId)
+
+    if (index === -1) {
+      throw new Error(`Photo ${photoId} not found`)
+    }
+
+    const current = this.photos[index]
     const changes: PhotoChanges = {}
 
-    if (input.url !== undefined && input.url !== photo.url) {
+    if (input.url !== undefined && input.url !== current.url) {
       changes.url = {
-        before: photo.url,
-        after: input.url
+        before: current.url,
+        after: input.url,
       }
     }
-    const updatedPhoto: Photo = input.url !== undefined
-    ? {...photo, url: input.url}
-    : photo
 
-    return {updatedPhoto, changes}
+    if (Object.keys(changes).length === 0) {
+      return { updatedPhoto: current, changes }
+    }
+
+    const updated: Photo = {
+      ...current,
+      url: input.url ?? current.url,
+    }
+
+    this.photos[index] = updated
+
+    return { updatedPhoto: updated, changes }
   }
 
-/* --- Queries --- */
+  /* --- Queries --- */
+
   listPhotos(): string[] {
-    // Backwuard-compatible
-    return this.photos.map(photo => photo.url) 
+    return this.photos.map(photo => photo.url)
   }
 
   getPhotoById(photoId: string): Photo | undefined {

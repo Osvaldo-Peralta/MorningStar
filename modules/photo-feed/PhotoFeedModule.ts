@@ -1,7 +1,9 @@
+// modules/photo-feed/PhotoFeedModule.ts
 import { AppModule } from '../../core/module'
 import { CoreContext } from '../../core/context/CoreContext'
 import { ModuleState } from '../../core/module/ModuleState'
 import { PhotoFeedService } from './domain/PhotoFeedService'
+import { EditPhotoInput } from './domain/EditPhotoInput'
 
 export class PhotoFeedModule implements AppModule {
   readonly id = 'photo-feed'
@@ -45,6 +47,35 @@ export class PhotoFeedModule implements AppModule {
         addedAt: photo.createdAt,
       },
       timestamp: Date.now(),
+    })
+  }
+
+  editPhoto(photoId: string, input: EditPhotoInput): void {
+    if (!this.service || !this.events) {
+      throw new Error('PhotoFeedModule not initialized')
+    }
+
+    const  {updatedPhoto, changes} = this.service.editPhoto(photoId, input)
+
+    if(Object.keys(changes).length === 0) {
+      return
+    }
+
+    // Se emite una copia profunda de los cambios para el historial
+    const eventPayload = JSON.parse(JSON.stringify({
+      photoId,
+      changes
+    }))
+    ;(this.events as any).emit({
+      name: 'photo:edited',
+      category: 'domain',
+      source: {
+        moduleId: this.id,
+        entity: 'photo',
+        entityId: photoId
+      },
+      payload: eventPayload, //  Se envia la copia inmutable
+      timestamp: Date.now()
     })
   }
 
