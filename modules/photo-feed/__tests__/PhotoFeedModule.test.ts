@@ -1,8 +1,8 @@
 // modules/photo-feed/PhotoFeedModule.test.ts
 import { describe, it, expect } from 'vitest'
-import { PhotoFeedModule } from './PhotoFeedModule'
-import { ModuleRegistry } from '../../core/module/ModuleRegistry'
-import { createMockCoreContext } from '../../core/module/__mocks__/mockCoreContext'
+import { PhotoFeedModule } from '../PhotoFeedModule'
+import { ModuleRegistry } from '../../../core/module'
+import { createMockCoreContext } from '../../../core/module/__mocks__/mockCoreContext'
 
 describe('PhotoFeedModule', () => {
   it('adds and lists photos', async () => {
