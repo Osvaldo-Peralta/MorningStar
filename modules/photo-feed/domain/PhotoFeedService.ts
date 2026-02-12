@@ -10,11 +10,7 @@ export class PhotoFeedService {
   /* --- Commands --- */
 
   addPhoto(url: string): Photo {
-    const photo: Photo = {
-      id: nanoid(),
-      url,
-      createdAt: Date.now(),
-    }
+    const photo = new Photo(nanoid(), url)
 
     this.photos.push(photo)
     return photo
@@ -24,34 +20,18 @@ export class PhotoFeedService {
     photoId: string,
     input: EditPhotoInput
   ): { updatedPhoto: Photo; changes: PhotoChanges } {
-    const index = this.photos.findIndex(p => p.id === photoId)
+    const photo = this.photos.find(p => p.id === photoId)
 
-    if (index === -1) {
+    if (!photo) {
       throw new Error(`Photo ${photoId} not found`)
     }
 
-    const current = this.photos[index]
-    const changes: PhotoChanges = {}
+    const changes = photo.edit(input)
 
-    if (input.url !== undefined && input.url !== current.url) {
-      changes.url = {
-        before: current.url,
-        after: input.url,
-      }
+    return {
+      updatedPhoto: photo,
+      changes,
     }
-
-    if (Object.keys(changes).length === 0) {
-      return { updatedPhoto: current, changes }
-    }
-
-    const updated: Photo = {
-      ...current,
-      url: input.url ?? current.url,
-    }
-
-    this.photos[index] = updated
-
-    return { updatedPhoto: updated, changes }
   }
 
   /* --- Queries --- */
