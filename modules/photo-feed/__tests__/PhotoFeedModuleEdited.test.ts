@@ -1,5 +1,6 @@
 import { PhotoFeedModule } from "../PhotoFeedModule";
 import { CoreContext } from "../../../core/context/CoreContext";
+import { describe, it, expect } from "vitest";
 
 describe('PhotoFeedModule - photo:edited', () => {
     it('emits photo:added and then photo:edited when a photo is edited', async () => {
