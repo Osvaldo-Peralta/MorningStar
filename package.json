@@ -1,12 +1,23 @@
 {
-  "devDependencies": {
-    "@types/node": "^25.1.0",
-    "vitest": "^4.0.18"
-  },
+  "name": "morningstar",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+
   "scripts": {
-    "test": "vitest"
+    "dev": "vitest",
+    "test": "vitest run",
+    "build": "tsc",
+    "clean": "rm -rf dist"
   },
+
   "dependencies": {
     "nanoid": "^5.1.6"
+  },
+
+  "devDependencies": {
+    "@types/node": "^25.1.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.0.18"
   }
 }
