@@ -11,3 +11,15 @@ Nota: Es posible que primero necesites instalar `tsc`
 ```bash
 node bootstrap.js
 ```
+
+---
+
+## Comandos basicos para verificar la integridad del sistema
+```bash
+npm run clean       # Limpiar compilación (si existe)
+npm run build       # Para compilar el proyecto
+npm run dev         # Modo desarrollador (para tests, watch interactivo)
+
+# Modo normal (CI Limpio)
+npm test            # Ejecuta los tests una sola vez
+```
