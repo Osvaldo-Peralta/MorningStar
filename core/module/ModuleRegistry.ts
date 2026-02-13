@@ -20,24 +20,21 @@ export class ModuleRegistry {
     private readonly context: CoreContext<CoreEventMap>
   ) {}
 
-  private emitLifecycleEvent<
-    // Restringimos K para que sea una llave de CoreEventMap que sea estrictamente string
-    K extends Extract<keyof CoreEventMap, string>
-  >(
+  private emitLifecycleEvent<K extends Extract<keyof CoreEventMap, string>>(
     name: K,
     moduleId: string
   ): void {
-    // Usamos el casting 'as any' o una intersección más precisa para la asignación
-    // pero la definición del objeto debe ser clara para el compilador
-    const event = {
+    // Al extraer solo los strings de las llaves, 'name' ya es asignable
+    const event: DomainEvent<CoreEventMap[K]> & { name: K } = {
       name,
-      category: 'lifecycle' as const,
+      category: 'lifecycle',
       source: { moduleId },
-      payload: { moduleId } as any, // Forzamos el payload ya que K es dinámico
+      // Usamos unknown como puente seguro para asignar el payload dinámico
+      payload: { moduleId } as unknown as CoreEventMap[K],
       timestamp: Date.now(),
-    } as DomainEvent<CoreEventMap[K]> & { name: K };
+    };
 
-    this.context.events.emit(event);
+    this.context.events.emit(event)
   }
 
   private emitErrorEvent(

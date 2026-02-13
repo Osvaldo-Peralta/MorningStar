@@ -2,54 +2,49 @@ import { AppModule } from '../../core/module'
 import { ModuleState } from '../../core/module/ModuleState.js'
 import { CoreContext } from '../../core/context/CoreContext'
 import { DomainEvent } from '../../core/context/DomainEvent'
+import { CoreEventMap } from '../../core/context/CoreEventMap'
 
 export class RuntimeLoggerModule implements AppModule {
   readonly id = 'runtime-logger'
-  readonly version = '0.1.0'
+  readonly version = '0.2.0' // Actualizado a la versión de la app
   state = ModuleState.Registered
 
-  private events?: CoreContext['events']
+  private events?: CoreContext<CoreEventMap>['events']
 
-  // 🔒 Handler estable (no se reasigna)
-  private readonly handler = (event: DomainEvent<any>): void => {
+  // Eliminamos 'any'. Usamos Record<string, unknown> para eventos de dominio desconocidos
+  private readonly handler = (event: DomainEvent<any> & { name: string }): void => {
     try {
-      if (!event || typeof event !== 'object') return
-      if (!event.category || !event.name || !event.timestamp) return
-
-      const timestamp = new Date(event.timestamp).toISOString()
+      const timestamp = new Date(event.timestamp).toISOString();
+      const source = event.source?.moduleId ? `[${event.source.moduleId}]` : '';
 
       switch (event.category) {
         case 'lifecycle':
-          console.log(`[${timestamp}] [LIFECYCLE] ${event.name}`)
+          // Ahora imprimimos el ID del módulo que viene en el payload
+          console.log(`[${timestamp}] [LIFECYCLE] ${source} ${event.name}`);
           break
 
         case 'domain':
-          console.log(`[${timestamp}] [DOMAIN] ${event.name}`)
+          // Podemos ser más específicos si el evento es de fotos
+          const detail = event.payload?.photoId ? `(ID: ${event.payload.photoId})` : '';
+          console.log(`[${timestamp}] [DOMAIN] ${source} ${event.name} ${detail}`);
           break
 
         case 'error':
-          console.error(`[${timestamp}] [ERROR] ${event.name}`)
+          console.error(`[${timestamp}] [ERROR] ${source} ${event.name}`, event.payload);
           break
-
-        default:
-          // 👇 esto hace que pase el test de unknown categories
-          return
       }
     } catch {
-      // 🔒 El logger nunca debe romper el sistema
+      // Fail-safe
     }
   }
 
-  async init(context: CoreContext): Promise<void> {
+  async init(context: CoreContext<CoreEventMap>): Promise<void> {
     this.events = context.events
     this.events.on('*', this.handler)
   }
 
   async dispose(): Promise<void> {
-    if (this.events) {
-      this.events.off('*', this.handler)
-    }
-
+    this.events?.off('*', this.handler)
     this.events = undefined
   }
 

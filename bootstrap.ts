@@ -7,51 +7,48 @@ import { RuntimeLoggerModule } from './modules/runtime-logger/RuntimeLoggerModul
 import { CoreEventMap } from './core/context/CoreEventMap.js'
 
 async function bootstrap() {
-  // 1. Instanciamos el Bus con el mapa de eventos del Core
   const eventBus = new InMemoryEventBus<CoreEventMap>()
-
   const context: CoreContext<CoreEventMap> = {
-    events: eventBus,
-    // 2. Mocks mínimos funcionales para evitar errores de ejecución
-    storage: {
-      get: async () => null,
-      set: async () => {},
-      remove: async () => {},
-      exists: async () => false
-    },
-    permission: {
-      has: () => true,
-      request: async () => true
-    },
-    logger: console,
-    config: {
-      environment: 'development', // Cambiado de 'test' para un flujo real
-      version: '0.1.0',
-    },
-  }
+  events: eventBus,
+      storage: {
+        get: async <T>(key: string): Promise<T | null> => null,
+        set: async <T>(key: string, value: T): Promise<void> => {},
+        remove: async (key: string): Promise<void> => {},
+        exists: async (key: string): Promise<boolean> => false
+      },
+      permission: {
+        has: (permission) => true,
+        request: async (permission) => true
+      },
+      logger: console,
+      config: {
+        environment: 'development',
+        version: '0.2.0',
+      },
+    }
 
-  // 3. El Registro usará el contexto tipado
   const registry = new ModuleRegistry(context)
-
-  // 4. Registro y Activación del Logger (Observabilidad)
   const runtimeLogger = new RuntimeLoggerModule()
-  registry.register(runtimeLogger)
-  await registry.init(runtimeLogger.id)
-  await registry.activate(runtimeLogger.id)
 
-  // 5. Registro y Activación de PhotoFeed
+  // Inicializar el Logger antes del registro
+  await runtimeLogger.init(context)
+
+  // A partir de aqui el orden sera determinista
+  registry.register(runtimeLogger)          // Emitira REGISTER (runtimeLogger)
+  await registry.init(runtimeLogger.id)     // Emitira INTIALIZED (runtimeLogger)
+  await registry.activate(runtimeLogger.id) // Emitira ACTIVATE (RuntimeLogger)
+
   const photoFeed = new PhotoFeedModule()
-  registry.register(photoFeed)
+  registry.register(photoFeed)              // Emitira REGISTERES (photoFeed)
   await registry.init(photoFeed.id)
   await registry.activate(photoFeed.id)
 
-  // 6. Uso del módulo
   photoFeed.addPhoto('https://example.com/photo1.jpg')
-  
-  // Imprimimos el estado para verificar
-  console.log('Photos initialized:', photoFeed.listPhotos())
+  photoFeed.addPhoto('https://example.com/photo2.jpg')
+
+  console.log('Photos Initialized: ', photoFeed.listPhotos())
 }
 
 bootstrap().catch(err => {
-  console.error('Bootstrap failed:', err)
+  console.error('Bootstrap failer: ', err)
 })
