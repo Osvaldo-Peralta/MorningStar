@@ -18,8 +18,14 @@ describe('ModuleRegistry EventBus integration', () => {
     await registry.init(module.id)
     await registry.activate(module.id)
 
-    expect(spy).toHaveBeenCalledWith({
-      moduleId: module.id
+  expect(spy).toHaveBeenCalledWith(
+    expect.objectContaining({
+      name: ModuleEvents.ACTIVATED,
+      category: 'lifecycle',
+      payload: { moduleId: module.id },
+      source: { moduleId: module.id },
+      timestamp: expect.any(Number)
     })
+  )
   })
 })

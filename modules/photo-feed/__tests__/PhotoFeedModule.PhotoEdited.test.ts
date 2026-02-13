@@ -1,4 +1,7 @@
+// modules/photo-feed/__tests__/PhotoFeedModule.PhotoEdited.test.ts
 import { PhotoFeedModule } from "../PhotoFeedModule"
+import {describe, it, expect} from "vitest"
+import { vitest } from "vitest"
 
 // Caso -> No emitir 'photo:edited' si no hay cambios reales
 it ('does NOT emit photo:edited if edit does not change anything', async () => {

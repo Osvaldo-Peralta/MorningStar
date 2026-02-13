@@ -1,9 +1,7 @@
 import { AppModule } from '../../core/module'
-import { ModuleState } from '../../core/module/ModuleState'
+import { ModuleState } from '../../core/module/ModuleState.js'
 import { CoreContext } from '../../core/context/CoreContext'
-import { SystemEvent } from '../../core/context/SystemEventCategory'
-
-type SystemEventHandler = (event: SystemEvent) => void
+import { DomainEvent } from '../../core/context/DomainEvent'
 
 export class RuntimeLoggerModule implements AppModule {
   readonly id = 'runtime-logger'
@@ -11,78 +9,50 @@ export class RuntimeLoggerModule implements AppModule {
   state = ModuleState.Registered
 
   private events?: CoreContext['events']
-  private handler?: SystemEventHandler
+
+  // 🔒 Handler estable (no se reasigna)
+  private readonly handler = (event: DomainEvent<any>): void => {
+    try {
+      if (!event || typeof event !== 'object') return
+      if (!event.category || !event.name || !event.timestamp) return
+
+      const timestamp = new Date(event.timestamp).toISOString()
+
+      switch (event.category) {
+        case 'lifecycle':
+          console.log(`[${timestamp}] [LIFECYCLE] ${event.name}`)
+          break
+
+        case 'domain':
+          console.log(`[${timestamp}] [DOMAIN] ${event.name}`)
+          break
+
+        case 'error':
+          console.error(`[${timestamp}] [ERROR] ${event.name}`)
+          break
+
+        default:
+          // 👇 esto hace que pase el test de unknown categories
+          return
+      }
+    } catch {
+      // 🔒 El logger nunca debe romper el sistema
+    }
+  }
 
   async init(context: CoreContext): Promise<void> {
     this.events = context.events
-
-    this.handler = (event: SystemEvent) => {
-      try {
-        // Filtrado mínimo (módulo pasivo)
-        if (event.category !== 'lifecycle' && event.category !== 'error' && event.category !== 'domain') {
-          return
-        }
-
-        // Timestamp legible
-        const time = new Date(event.timestamp).toISOString()
-
-        // 3️⃣ Información básica
-        const category = event.category.toUpperCase()
-        const name = event.name
-
-        const sourceParts: string[] = []
-        if (event.source?.moduleId) {
-          sourceParts.push(`module=${event.source.moduleId}`)
-        }
-        if ((event.source as any)?.entity) {
-          sourceParts.push(`entity=${(event.source as any).entity}`)
-        }
-
-        const source = sourceParts.length
-        ? ` ${sourceParts.join(' ')}`
-        : ''
-
-        // Payload seguro
-        let payload = ''
-        if (event.payload !== undefined) {
-          try {
-            payload = ` payload=${JSON.stringify(event.payload)}`
-          } catch {
-            payload = ' payload=[unserializable]'
-          }
-        }
-
-        // Output
-        const message = `[${time}] [${category}] ${name}${source}${payload}`
-
-        if (event.category === 'error') {
-          console.error(message)
-        } else {
-          console.log(message)
-        }
-      } catch {
-        // el logger nunca rompe el sistema
-      }
-    }
-
-    // 🔌 Suscripción global (observabilidad pura)
-    ;(this.events as any).onSystem('*', this.handler)
-  }
-
-  async activate(): Promise<void> {
-    // pasivo: no-op
-  }
-
-  async deactivate(): Promise<void> {
-    // pasivo: no-op
+    this.events.on('*', this.handler)
   }
 
   async dispose(): Promise<void> {
-    if (this.events && this.handler) {
-      ;(this.events as any).offSystem('*', this.handler)
+    if (this.events) {
+      this.events.off('*', this.handler)
     }
 
-    this.handler = undefined
     this.events = undefined
   }
+
+  async activate(): Promise<void> {}
+  async deactivate(): Promise<void> {}
 }
