@@ -1,10 +1,10 @@
 // modules/photo-feed/PhotoFeedModule.ts
 import { AppModule } from '../../core/module'
 import { CoreContext } from '../../core/context/CoreContext'
-import { ModuleState } from '../../core/module/ModuleState'
-import { PhotoFeedService } from './domain/PhotoFeedService'
+import { ModuleState } from '../../core/module/ModuleState.js'
+import { PhotoFeedService } from './domain/PhotoFeedService.js'
 import { EditPhotoInput } from './domain/EditPhotoInput'
-import { PhotoAddedPayload, PhotoEditedPayload } from './events'
+import { PhotoAddedPayload, PhotoEditedPayload } from './events.js'
 import { DomainEvent } from '../../core/context/DomainEvent'
 
 export class PhotoFeedModule implements AppModule {

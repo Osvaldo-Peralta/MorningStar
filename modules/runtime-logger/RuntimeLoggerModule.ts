@@ -1,5 +1,5 @@
 import { AppModule } from '../../core/module'
-import { ModuleState } from '../../core/module/ModuleState'
+import { ModuleState } from '../../core/module/ModuleState.js'
 import { CoreContext } from '../../core/context/CoreContext'
 import { DomainEvent } from '../../core/context/DomainEvent'
 

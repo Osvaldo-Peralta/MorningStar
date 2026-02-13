@@ -1,10 +1,10 @@
 // bootstrap.ts
-import { ModuleRegistry } from './core/module/ModuleRegistry'
-import { InMemoryEventBus } from './core/context/InMemoryEventBus'
-import { PhotoFeedModule } from './modules/photo-feed'
-import { CoreContext } from './core/context/CoreContext'
-import { RuntimeLoggerModule } from './modules/runtime-logger/RuntimeLoggerModule'
-import { CoreEventMap } from './core/context/CoreEventMap'
+import { ModuleRegistry } from './core/module/ModuleRegistry.js'
+import { InMemoryEventBus } from './core/context/InMemoryEventBus.js'
+import { PhotoFeedModule } from './modules/photo-feed/PhotoFeedModule.js'
+import { CoreContext } from './core/context/CoreContext.js'
+import { RuntimeLoggerModule } from './modules/runtime-logger/RuntimeLoggerModule.js'
+import { CoreEventMap } from './core/context/CoreEventMap.js'
 
 async function bootstrap() {
   // 1. Instanciamos el Bus con el mapa de eventos del Core

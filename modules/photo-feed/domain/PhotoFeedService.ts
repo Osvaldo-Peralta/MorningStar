@@ -2,7 +2,7 @@
 import { nanoid } from 'nanoid'
 import { EditPhotoInput } from './EditPhotoInput'
 import { PhotoChanges } from './PhotoChanges'
-import { Photo } from './Photo'
+import { Photo } from './Photo.js'
 
 export class PhotoFeedService {
   private photos: Photo[] = []

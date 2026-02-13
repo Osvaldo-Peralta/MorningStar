@@ -1,15 +1,15 @@
 // core/module/ModuleRegistry.ts
 
 import { AppModule } from './AppModule'
-import { ModuleState } from './ModuleState'
+import { ModuleState } from './ModuleState.js'
 import {
   ModuleAlreadyRegisteredError,
   ModuleNotFoundError,
   InvalidModuleStateError,
   ModuleLifecycleError
-} from './errors'
+} from './errors.js'
 import { CoreContext } from '../context/CoreContext'
-import { ModuleEvents } from '../context/events'
+import { ModuleEvents } from '../context/events.js'
 import { DomainEvent } from '../context/DomainEvent'
 import { CoreEventMap } from '../context/CoreEventMap'
 
