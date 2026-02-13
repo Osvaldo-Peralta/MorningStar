@@ -1,4 +1,5 @@
 // core/module/ModuleRegistry.ts
+
 import { AppModule } from './AppModule'
 import { ModuleState } from './ModuleState'
 import {
@@ -9,20 +10,34 @@ import {
 } from './errors'
 import { CoreContext } from '../context/CoreContext'
 import { ModuleEvents } from '../context/events'
-import { SystemEventCategory } from '../context/SystemEventCategory'
+import { DomainEvent } from '../context/DomainEvent'
+import { CoreEventMap } from '../context/CoreEventMap'
 
 export class ModuleRegistry {
-    private emitLifecycleEvent(
-    name: string,
-    moduleId: string,
-    payload: Record<string, unknown> = {}
+  private readonly modules = new Map<string, AppModule>()
+
+  constructor(
+    private readonly context: CoreContext<CoreEventMap>
+  ) {}
+
+  private emitLifecycleEvent<
+    // Restringimos K para que sea una llave de CoreEventMap que sea estrictamente string
+    K extends Extract<keyof CoreEventMap, string>
+  >(
+    name: K,
+    moduleId: string
   ): void {
-    (this.context.events as any).emit({
-    name,
-    category: 'lifecycle' as SystemEventCategory,
-    source: { moduleId },
-    payload: { moduleId, ...payload }
-  })
+    // Usamos el casting 'as any' o una intersección más precisa para la asignación
+    // pero la definición del objeto debe ser clara para el compilador
+    const event = {
+      name,
+      category: 'lifecycle' as const,
+      source: { moduleId },
+      payload: { moduleId } as any, // Forzamos el payload ya que K es dinámico
+      timestamp: Date.now(),
+    } as DomainEvent<CoreEventMap[K]> & { name: K };
+
+    this.context.events.emit(event);
   }
 
   private emitErrorEvent(
@@ -30,17 +45,18 @@ export class ModuleRegistry {
     action: string,
     error: unknown
   ): void {
-  (this.context.events as any).emit({
-    name: ModuleEvents.ERROR,
-    category: 'error' as SystemEventCategory,
-    source: { moduleId, action },
-    payload: { moduleId, action, error }
-  })
+    const event: DomainEvent<
+      CoreEventMap[typeof ModuleEvents.ERROR]
+    > & { name: typeof ModuleEvents.ERROR } = {
+      name: ModuleEvents.ERROR,
+      category: 'error',
+      source: { moduleId },
+      payload: { moduleId, action, error },
+      timestamp: Date.now(),
+    }
+
+    this.context.events.emit(event)
   }
-
-  private readonly modules = new Map<string, AppModule>()
-
-  constructor(private readonly context: CoreContext) {}
 
   register(module: AppModule): void {
     if (this.modules.has(module.id)) {
@@ -49,10 +65,8 @@ export class ModuleRegistry {
 
     module.state = ModuleState.Registered
     this.modules.set(module.id, module)
-    this.emitLifecycleEvent(
-      ModuleEvents.REGISTERED,
-      module.id
-    )
+
+    this.emitLifecycleEvent(ModuleEvents.REGISTERED, module.id)
   }
 
   get(moduleId: string): AppModule {
@@ -71,14 +85,14 @@ export class ModuleRegistry {
     }
 
     try {
-      await module.init(this.context)
-      module.state = ModuleState.Initialized
-      this.emitLifecycleEvent(ModuleEvents.INITIALIZED, moduleId)
-    } catch (error) {
-      // Eventualmente implementar este catch para el resto
-      this.emitErrorEvent(moduleId, 'init', error)
-      throw new ModuleLifecycleError(moduleId, 'init', String(error))
-    }
+    await module.init(this.context)
+    module.state = ModuleState.Initialized
+    this.emitLifecycleEvent(ModuleEvents.INITIALIZED, moduleId)
+  } catch (error) {
+    // Es vital que el error sea String(error) para asegurar compatibilidad
+    this.emitErrorEvent(moduleId, 'init', error)
+    throw new ModuleLifecycleError(moduleId, 'init', String(error))
+  }
   }
 
   async activate(moduleId: string): Promise<void> {

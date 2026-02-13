@@ -1,10 +1,32 @@
 // core/context/EventBus.ts
-export type EventHandler<T = unknown> = (payload: T) => void
+import { DomainEvent } from "./DomainEvent"
 
-export interface EventBus {
-    emit<T = unknown>(event: string, payload: T): void
-    on<T = unknown>(event: string, handler: EventHandler<T>): void
-    off<T = unknown>(event: string, handler: EventHandler<T>): void
+export type EventHandler<
+  TEventMap,
+  K extends keyof TEventMap
+> = (event: DomainEvent<TEventMap[K]> & { name: K }) => void
+
+export interface EventBus<
+  TEventMap extends Record<string, unknown>
+> {
+  emit<K extends keyof TEventMap>(
+    event: DomainEvent<TEventMap[K]> & { name: K }
+  ): void
+
+  on<K extends keyof TEventMap>(
+    eventName: K,
+    handler: EventHandler<TEventMap, K>
+  ): void
+
+  off<K extends keyof TEventMap>(
+    eventName: K,
+    handler: EventHandler<TEventMap, K>
+  ): void
+
+  on(
+    eventName: '*',
+    handler: (event: DomainEvent<any>) => void
+  ): void
 }
 
 // Implementaciones intercambiables (in-memory hoy, IPC mañana)

@@ -1,4 +1,6 @@
 // modules/photo-feed/domain/Photo.ts
+import { PhotoChanges } from "./PhotoChanges"
+
 export interface EditPhotoInput {
   url?: string
 }
@@ -27,11 +29,14 @@ export class Photo {
     return this._updatedAt
   }
 
-  edit(input: EditPhotoInput): Record<string, {before: unknown, after: unknown}> {
-    const changes: Record<string, {before: unknown, after: unknown}> = {}
+  edit(input: EditPhotoInput): PhotoChanges {
+    const changes: PhotoChanges = {}
 
     if(input.url !== undefined && input.url !== this._url) {
-      changes.url = {before: this._url, after: input.url}
+      changes.url = {
+        before: this._url,
+        after: input.url
+      }
       this._url = input.url
     }
 

@@ -4,6 +4,8 @@ import { CoreContext } from '../../core/context/CoreContext'
 import { ModuleState } from '../../core/module/ModuleState'
 import { PhotoFeedService } from './domain/PhotoFeedService'
 import { EditPhotoInput } from './domain/EditPhotoInput'
+import { PhotoAddedPayload, PhotoEditedPayload } from './events'
+import { DomainEvent } from '../../core/context/DomainEvent'
 
 export class PhotoFeedModule implements AppModule {
   readonly id = 'photo-feed'
@@ -34,7 +36,7 @@ export class PhotoFeedModule implements AppModule {
     const photo = this.service.addPhoto(url)
 
     // 📣 Emitimos evento de dominio
-    ;(this.events as any).emit({
+    ;const event: DomainEvent<PhotoAddedPayload> = {
       name: 'photo:added',
       category: 'domain',
       source: {
@@ -44,10 +46,11 @@ export class PhotoFeedModule implements AppModule {
       payload: {
         photoId: photo.id,
         url: photo.url,
-        addedAt: photo.createdAt,
+        addedAt: photo.updatedAt
       },
-      timestamp: Date.now(),
-    })
+      timestamp: Date.now()
+    }
+    this.events.emit(event)
   }
 
   editPhoto(photoId: string, input: EditPhotoInput): void {
@@ -66,7 +69,7 @@ export class PhotoFeedModule implements AppModule {
       photoId,
       changes
     }))
-    ;(this.events as any).emit({
+    ;const event: DomainEvent<PhotoEditedPayload> = {
       name: 'photo:edited',
       category: 'domain',
       source: {
@@ -74,9 +77,10 @@ export class PhotoFeedModule implements AppModule {
         entity: 'photo',
         entityId: photoId
       },
-      payload: eventPayload, //  Se envia la copia inmutable
+      payload: eventPayload,
       timestamp: Date.now()
-    })
+    }
+    this.events.emit(event)
   }
 
   listPhotos(): string[] {
