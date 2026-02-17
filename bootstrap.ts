@@ -5,17 +5,15 @@ import { PhotoFeedModule } from './modules/photo-feed/PhotoFeedModule.js'
 import { CoreContext } from './core/context/CoreContext.js'
 import { RuntimeLoggerModule } from './modules/runtime-logger/RuntimeLoggerModule.js'
 import { CoreEventMap } from './core/context/CoreEventMap.js'
+import { LocalStorageAdapter } from './core/infraestructure/LocalStorageAdapter.js'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()
+  // Instancia del adaptador real
+  const storage = new LocalStorageAdapter('v0.2.0_');
   const context: CoreContext<CoreEventMap> = {
   events: eventBus,
-      storage: {
-        get: async <T>(key: string): Promise<T | null> => null,
-        set: async <T>(key: string, value: T): Promise<void> => {},
-        remove: async (key: string): Promise<void> => {},
-        exists: async (key: string): Promise<boolean> => false
-      },
+      storage,                                        // Se inyecta el adaptador real
       permission: {
         has: (permission) => true,
         request: async (permission) => true
