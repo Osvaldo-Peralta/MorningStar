@@ -54,22 +54,19 @@ export class PhotoFeedModule implements AppModule {
   }
 
   editPhoto(photoId: string, input: EditPhotoInput): void {
-    if (!this.service || !this.events) {
+    if(!this.service || !this.events) {
       throw new Error('PhotoFeedModule not initialized')
     }
 
-    const  {updatedPhoto, changes} = this.service.editPhoto(photoId, input)
+    const  { updatedPhoto, changes } = this.service.editPhoto(photoId, input)
 
+    // Si no hay cambios reales, no disparamos eventos (clean logic)
     if(Object.keys(changes).length === 0) {
       return
     }
 
-    // Se emite una copia profunda de los cambios para el historial
-    const eventPayload = JSON.parse(JSON.stringify({
-      photoId,
-      changes
-    }))
-    ;const event: DomainEvent<PhotoEditedPayload> = {
+    // Emitir evento de dominio
+    const event: DomainEvent<PhotoEditedPayload> = {
       name: 'photo:edited',
       category: 'domain',
       source: {
@@ -77,9 +74,14 @@ export class PhotoFeedModule implements AppModule {
         entity: 'photo',
         entityId: photoId
       },
-      payload: eventPayload,
+      // Se pasa el nuevo objeto literal para evitar mutaciones externas
+      payload: {
+        photoId: updatedPhoto.id,
+        changes: {...changes} // Shallow copy de los cambios
+      },
       timestamp: Date.now()
     }
+    
     this.events.emit(event)
   }
 
