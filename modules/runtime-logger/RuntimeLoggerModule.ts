@@ -19,22 +19,33 @@ export class RuntimeLoggerModule implements AppModule {
 
       switch (event.category) {
         case 'lifecycle':
-          // Ahora imprimimos el ID del módulo que viene en el payload
           console.log(`[${timestamp}] [LIFECYCLE] ${source} ${event.name}`);
-          break
+          break;
 
-        case 'domain':
-          // Podemos ser más específicos si el evento es de fotos
-          const detail = event.payload?.photoId ? `(ID: ${event.payload.photoId})` : '';
+        case 'domain': {
+          let detail = event.payload?.photoId ? `(ID: ${event.payload.photoId})` : '';
+          
+          // Lógica específica para mostrar cambios si existen
+          if (event.name === 'photo:edited' && event.payload?.changes) {
+            const changes = event.payload.changes;
+            const logChanges = Object.entries(changes)
+              .map(([field, change]: [string, any]) => 
+                `${field}: ${change.before} -> ${change.after}`
+              ).join(', ');
+            
+            detail += ` | Changes: { ${logChanges} }`;
+          }
+
           console.log(`[${timestamp}] [DOMAIN] ${source} ${event.name} ${detail}`);
-          break
+          break;
+        }
 
         case 'error':
           console.error(`[${timestamp}] [ERROR] ${source} ${event.name}`, event.payload);
-          break
+          break;
       }
     } catch {
-      // Fail-safe
+      // El logger nunca debe romper el hilo principal
     }
   }
 
