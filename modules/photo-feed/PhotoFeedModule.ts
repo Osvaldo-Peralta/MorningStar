@@ -9,61 +9,77 @@ import { DomainEvent } from '../../core/context/DomainEvent'
 
 export class PhotoFeedModule implements AppModule {
   readonly id = 'photo-feed'
-  readonly version = '0.1.0'
-  state = ModuleState.Registered
-
+  readonly version = '0.2.0'
+  private readonly STORAGE_KEY = 'photo-feed:data'            // Namespace del modulo
+  
   private service?: PhotoFeedService
+  private storage?: CoreContext['storage']
   private events?: CoreContext['events']
+
+  // Se mantiene el estado inicial requerido por la interfaz AppModule
+  state = ModuleState.Registered 
 
   async init(context: CoreContext): Promise<void> {
     this.service = new PhotoFeedService()
+    this.storage = context.storage
     this.events = context.events
+
+    // 1. Hidratación: Recuperamos URLs guardadas
+    const savedUrls = await this.storage.get<string[]>(this.STORAGE_KEY)
+    if(savedUrls && Array.isArray(savedUrls)) {
+      // Reinstanciamos las fotos en el servicio de dominio
+      savedUrls.forEach(url => this.service?.addPhoto(url))
+    }
   }
+
+  private async persist(): Promise<void> {
+      if (this.service && this.storage) {
+        // Guardamos solo lo necesario (las URLs) para reconstruir el estado
+        const urls = this.service.listPhotos()
+        await this.storage.set(this.STORAGE_KEY, urls)
+      }
+    }
 
   async activate(): Promise<void> {}
   async deactivate(): Promise<void> {}
   async dispose(): Promise<void> {
     this.service = undefined
     this.events = undefined
+    this.storage = undefined      // Limpieza completa de referencias
   }
 
   /** API pública del módulo */
-  addPhoto(url: string): void {
-    if (!this.service || !this.events) {
-      throw new Error('PhotoFeedModule not initialized')
-    }
+  async addPhoto(url: string): Promise<void> {
+    if (!this.service || !this.events) throw new Error('Not Initialized')
+
+    if(!url || !url.startsWith('http')) throw new Error('Invalid photo URL')
 
     const photo = this.service.addPhoto(url)
+    await this.persist()
 
-    // 📣 Emitimos evento de dominio
-    ;const event: DomainEvent<PhotoAddedPayload> = {
+    this.events.emit({
       name: 'photo:added',
       category: 'domain',
-      source: {
-        moduleId: this.id,
-        entity: 'photo',
-      },
+      source: {moduleId: this.id, entity: 'photo'},
       payload: {
         photoId: photo.id,
         url: photo.url,
         addedAt: photo.updatedAt
       },
       timestamp: Date.now()
-    }
-    this.events.emit(event)
+    })
   }
 
-  editPhoto(photoId: string, input: EditPhotoInput): void {
-    if(!this.service || !this.events) {
-      throw new Error('PhotoFeedModule not initialized')
-    }
+  async editPhoto(photoId: string, input: EditPhotoInput): Promise<void> {
+    if(!this.service || !this.events) throw new Error('Not Initialized')
 
     const  { updatedPhoto, changes } = this.service.editPhoto(photoId, input)
 
     // Si no hay cambios reales, no disparamos eventos (clean logic)
-    if(Object.keys(changes).length === 0) {
-      return
-    }
+    if(Object.keys(changes).length === 0) return
+
+    // Persistencia en el nuevo estado (Lista de Urls actualizada)
+    await this.persist()
 
     // Emitir evento de dominio
     const event: DomainEvent<PhotoEditedPayload> = {
