@@ -1,5 +1,12 @@
+// web/tsconfig.app.json
 {
   "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["../core/*"],
+      "@modules/*": ["../modules/*"],
+      "@web/*": ["src/*"] 
+    },
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "target": "ES2022",
     "useDefineForClassFields": true,
