@@ -1,74 +1,60 @@
-// modules/photo-feed/__tests__/PhotoFeedModule.PhotoEdited.test.ts
 import { PhotoFeedModule } from "../PhotoFeedModule"
-import {describe, it, expect} from "vitest"
-import { vitest } from "vitest"
+import { describe, it, expect, vitest } from "vitest"
 
-// Caso -> No emitir 'photo:edited' si no hay cambios reales
-it ('does NOT emit photo:edited if edit does not change anything', async () => {
-    const emittedEvents: any[] = []
+describe('PhotoFeedModule - Edición de Fotos', () => {
+    // Helper para crear un contexto con los mocks necesarios
+    const createMockContext = () => {
+        const emittedEvents: any[] = [];
+        return {
+            emittedEvents,
+            context: {
+                events: {
+                    emit: (event: any) => emittedEvents.push(event),
+                },
+                // Mock del storage para evitar el error de 'undefined'
+                storage: {
+                    get: vitest.fn().mockResolvedValue([]),
+                    set: vitest.fn().mockResolvedValue(undefined)
+                }
+            } as any
+        };
+    };
 
-    const mockContext = {
-        events: {
-            emit: (event: any) => emittedEvents.push(event),
-        },
-    } as any
+    it('does NOT emit photo:edited if edit does not change anything', async () => {
+        const { context, emittedEvents } = createMockContext();
+        const module = new PhotoFeedModule();
+        await module.init(context);
 
-    const module = new PhotoFeedModule()
-    await module.init(mockContext)
+        // Usamos URLs válidas con 'http'
+        await module.addPhoto('http://photo-a.jpg');
+        const photoId = emittedEvents[0].payload.photoId;
 
-    // Añadir foto
-    module.addPhoto('photo-a.jpg')
-    const photoId = emittedEvents[0].payload.photoId
+        await module.editPhoto(photoId, { url: 'http://photo-a.jpg' });
 
-    // Acción: editar usando la misma URL
-    module.editPhoto(photoId, {url: 'photo-a.jpg'})
+        expect(emittedEvents).toHaveLength(1);
+        expect(emittedEvents[0].name).toBe('photo:added');
+    });
 
-    // Coincidencia
-    expect(emittedEvents).toHaveLength(1)
-    expect(emittedEvents[0].name).toBe('photo:added')
-})
+    it('throws an error when trying to edit a non-existing photo', async () => {
+        const { context } = createMockContext();
+        const module = new PhotoFeedModule();
+        await module.init(context);
 
-// Caso -> Error si se intenta editar una foto inexistente
-it('throws an error when trying to edit a non-existing photo', async () => {
-  // Arrange
-  const mockContext = {
-    events: {
-      emit: vitest.fn(),
-    },
-  } as any
+        await expect(
+            module.editPhoto('non-existent-id', { url: 'http://x.jpg' })
+        ).rejects.toThrow('Photo non-existent-id not found');
+    });
 
-  const module = new PhotoFeedModule()
-  await module.init(mockContext)
+    it('emits events in the correct order: photo:added → photo:edited', async () => {
+        const { context, emittedEvents } = createMockContext();
+        const module = new PhotoFeedModule();
+        await module.init(context);
 
-  // Act + Assert
-  expect(() =>
-    module.editPhoto('non-existent-id', { url: 'x.jpg' })
-  ).toThrow('Photo non-existent-id not found')
-})
+        await module.addPhoto('http://photo-a.jpg');
+        const photoId = emittedEvents[0].payload.photoId;
 
-// Caso -> Orden correcto de eventos (added -> edited)
-it('emits events in the correct order: photo:added → photo:edited', async () => {
-  // Arrange
-  const emittedEvents: any[] = []
+        await module.editPhoto(photoId, { url: 'http://photo-b.jpg' });
 
-  const mockContext = {
-    events: {
-      emit: (event: any) => emittedEvents.push(event),
-    },
-  } as any
-
-  const module = new PhotoFeedModule()
-  await module.init(mockContext)
-
-  // Act
-  module.addPhoto('photo-a.jpg')
-  const photoId = emittedEvents[0].payload.photoId
-
-  module.editPhoto(photoId, { url: 'photo-b.jpg' })
-
-  // Assert
-  expect(emittedEvents.map(e => e.name)).toEqual([
-    'photo:added',
-    'photo:edited',
-  ])
-})
+        expect(emittedEvents.map(e => e.name)).toEqual(['photo:added', 'photo:edited']);
+    });
+});
