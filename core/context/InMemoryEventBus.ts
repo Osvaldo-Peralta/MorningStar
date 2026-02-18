@@ -1,4 +1,5 @@
-import { EventBus, EventHandler } from "./EventBus"
+// core/context/InMemoryEventBus.ts
+import { EventBus, EventHandler, Unsubscribe } from "./EventBus"
 import { DomainEvent } from "./DomainEvent"
 
 export class InMemoryEventBus<
@@ -17,22 +18,28 @@ export class InMemoryEventBus<
     wildcard?.forEach(h => h(event))
   }
 
+  // 1. Sobrecarga para eventos específicos
   on<K extends keyof TEventMap>(
     eventName: K,
     handler: EventHandler<TEventMap, K>
-  ): void
+  ): Unsubscribe // <-- Cambiado de void a Unsubscribe
 
+  // 2. Sobrecarga para el wildcard '*'
   on(
     eventName: '*',
     handler: (event: DomainEvent<any>) => void
-  ): void
+  ): Unsubscribe // <-- Cambiado de void a Unsubscribe
 
-  on(eventName: any, handler: any): void {
+  // 3. Implementación real de la función
+  on(eventName: any, handler: any): Unsubscribe {
     if (!this.handlers.has(eventName)) {
       this.handlers.set(eventName, new Set())
     }
 
     this.handlers.get(eventName)!.add(handler)
+
+    // Devolvemos la función de limpieza (Clean Code: el objeto sabe cómo limpiarse a sí mismo)
+    return () => this.off(eventName, handler)
   }
 
   off<K extends keyof TEventMap>(
