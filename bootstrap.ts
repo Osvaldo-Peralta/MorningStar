@@ -44,7 +44,7 @@ async function bootstrap() {
   photoFeed.addPhoto('https://example.com/photo1.jpg')
   photoFeed.addPhoto('https://example.com/photo2.jpg')
 
-  console.log('Photos Initialized: ', photoFeed.listPhotos())
+  console.log('Photos Initialized: ', photoFeed.listEntries())
 }
 
 bootstrap().catch(err => {
