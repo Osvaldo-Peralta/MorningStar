@@ -128,7 +128,7 @@ export class PhotoFeedModule implements AppModule {
 
   // Cambio de listoPhotos por listEntries para que el UI reciba objetos Photo
 
-  lisEntries(): Photo[] {
+  listEntries(): Photo[] {
     if(!this.service) throw new Error('PhotoFeedModule not Initialized')
       return this.service.listEntries()
   }
