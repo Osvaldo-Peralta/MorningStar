@@ -6,6 +6,7 @@ import { PhotoFeedService } from './domain/PhotoFeedService.js'
 import { EditPhotoInput } from './domain/EditPhotoInput'
 import { PhotoAddedPayload, PhotoEditedPayload } from './events.js'
 import { DomainEvent } from '../../core/context/DomainEvent'
+import { Photo } from './domain/Photo'
 
 export class PhotoFeedModule implements AppModule {
   readonly id = 'photo-feed'
@@ -101,10 +102,42 @@ export class PhotoFeedModule implements AppModule {
     this.events.emit(event)
   }
 
+  async removePhoto(photoId: string): Promise<void> {
+    if(!this.service || !this.events) throw new Error('Not Initialized')
+    
+    // 1. Ejecutamos la eliminación en dominio
+    this.service.removePhoto(photoId)
+    // 2. Sincronizamos con el storage
+    await this.persist();
+    // 3. Notificamos al sistema
+    this.events.emit({
+      name: 'photo:removed',
+      category: 'domain',
+      source: {
+        moduleId: this.id,
+        entity: 'photo',
+        entityId: photoId
+      },
+      payload: {
+        photoId,
+        removedAt: Date.now()
+      },
+      timestamp: Date.now()
+    })
+  }
+
+  // Cambio de listoPhotos por listEntries para que el UI reciba objetos Photo
+
+  lisEntries(): Photo[] {
+    if(!this.service) throw new Error('PhotoFeedModule not Initialized')
+      return this.service.listEntries()
+  }
+  /*
   listPhotos(): string[] {
     if (!this.service) {
       throw new Error('PhotoFeedModule not initialized')
     }
     return this.service.listPhotos()
   }
+  */
 }
