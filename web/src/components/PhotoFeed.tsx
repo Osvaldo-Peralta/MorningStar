@@ -8,7 +8,7 @@ export const PhotoFeed: React.FC = () => {
   const [photos, setPhotos] = useState<Photo[]>([]); // Ahora guardamos objetos Photo
 
   const refreshPhotos = () => {
-    setPhotos(photoFeed.lisEntries());
+    setPhotos(photoFeed.listEntries());
   };
 
     useEffect(() => {
