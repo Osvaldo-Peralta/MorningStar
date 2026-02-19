@@ -5,7 +5,7 @@ export const PhotoCard = ({ url, index }: { url: string; index: number }) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   return (
-    <div className="relative group break-inside-avoid rounded-[24px] overflow-hidden bg-zinc-900 border border-white/[0.05] transition-all duration-500 hover:border-white/[0.15] hover:shadow-[0_0_40px_-15px_rgba(255,255,255,0.1)]">
+    <div className="relative group break-inside-avoid rounded-3xl overflow-hidden bg-zinc-900 border border-white/5 transition-all duration-500 hover:border-white/15 hover:shadow-[0_0_40px_-15px_rgba(255,255,255,0.1)]">
       {!isLoaded && (
         <div className="w-full aspect-square bg-zinc-900 animate-pulse" />
       )}

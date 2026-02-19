@@ -1,11 +1,15 @@
 // web/vite.config.ts
 import { defineConfig } from 'vite'
+import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    tailwindcss(),
+  ],
   // Mantenemos el root en la carpeta 'web' para que encuentre el index.html
   root: path.resolve(__dirname, '.'),
   // Crucial para que Vite pueda servir archivos desde afuera de `web/src`
