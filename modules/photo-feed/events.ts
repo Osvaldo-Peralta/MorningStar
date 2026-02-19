@@ -4,6 +4,7 @@ import { PhotoChanges } from "./domain/PhotoChanges"
 export const PHOTO_FEED_EVENTS = {
   PHOTO_ADDED: 'photo:added',
   PHOTO_EDITED: 'photo:edited',
+  PHOTO_REMOVED: 'photo:removed',
 } as const
 
 export interface PhotoAddedPayload {
@@ -15,4 +16,9 @@ export interface PhotoAddedPayload {
 export interface PhotoEditedPayload {
   readonly photoId: string
   readonly changes: PhotoChanges
+}
+
+export interface PhotoRemovedPayload {
+  readonly photoId: string
+  readonly removedAt: number
 }
