@@ -1,23 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PhotoCard } from './photo-feed/PhotoCard';
+import { Photo } from '@modules/photo-feed/domain/Photo';
 
 export const PhotoFeed: React.FC = () => {
   const { photoFeed, events } = useApp();
-  const [photos, setPhotos] = useState<string[]>([]);
+  const [photos, setPhotos] = useState<Photo[]>([]); // Ahora guardamos objetos Photo
 
   const refreshPhotos = () => {
-    setPhotos(photoFeed.listPhotos());
+    setPhotos(photoFeed.lisEntries());
   };
 
     useEffect(() => {
     refreshPhotos();
+    const subAdd = events.on('photo:added', refreshPhotos);
+    const subEdit = events.on('photo:edited', refreshPhotos); // Este evento no ha sido implementado jamas en el frontend
+    const subRemove = events.on('photo:removed', refreshPhotos);
     
-    // Ahora 'unsubscribe' es de tipo Unsubscribe (una función ejecutable)
-    const unsubscribe = events.on('photo:added', refreshPhotos);
-    
-    // Al desmontar el componente, se ejecuta el off automáticamente
-    return () => unsubscribe(); 
+    return () => {
+      subAdd();
+      subRemove();
+    }
     }, [photoFeed, events]);
 
   const handleAddPhoto = async () => {
@@ -31,8 +34,14 @@ export const PhotoFeed: React.FC = () => {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if(confirm('¿Seguro que quieres eliminar esta foto?')) {
+      await photoFeed.removePhoto(id)
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-slate-200">
+    <div className="min-h-screen bg-background text-slate-200">
       <header className="max-w-6xl mx-auto px-8 pt-16 pb-12 flex justify-between items-end">
         <div>
           <h1 className="text-5xl font-extrabold tracking-tighter text-white">MorningStar</h1>
@@ -48,13 +57,18 @@ export const PhotoFeed: React.FC = () => {
 
       <main className="max-w-6xl mx-auto px-8 pb-20">
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 space-y-8">
-          {photos.map((url, index) => (
-            <PhotoCard key={`${url}-${index}`} url={url} index={index} />
+          {photos.map((photo) => (
+            <PhotoCard
+              key={photo.id}
+              url={photo.url}
+              index={photo.id}
+              onDelete={() => handleDelete(photo.id)} // Ahora pasamos el ID real
+            />
           ))}
         </div>
 
         {photos.length === 0 && (
-          <div className="h-96 flex flex-col items-center justify-center border border-white/5 rounded-[2rem] bg-[#111]">
+          <div className="h-96 flex flex-col items-center justify-center border border-white/5 rounded-4xl bg-[#111]">
             <p className="text-zinc-600 font-medium tracking-widest text-sm uppercase">Empty Gallery</p>
           </div>
         )}
