@@ -34,10 +34,21 @@ export class PhotoFeedService {
     }
   }
 
+  removePhoto(photoId: string): void {
+    const initialLength = this.photos.length;
+    this.photos = this.photos.filter(p => p.id !== photoId);
+
+    if(this.photos.length === initialLength) throw new Error(`Photo ${photoId} not found`)
+  }
+
   /* --- Queries --- */
 
   listPhotos(): string[] {
     return this.photos.map(photo => photo.url)
+  }
+
+  listEntries(): Photo[] {
+    return [...this.photos] // retornamos copia para evitar mutaciones directas
   }
 
   getPhotoById(photoId: string): Photo | undefined {
