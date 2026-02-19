@@ -6,6 +6,9 @@ export type EventHandler<
   K extends keyof TEventMap
 > = (event: DomainEvent<TEventMap[K]> & { name: K }) => void
 
+// Definido un tipo para la limpieza
+export type Unsubscribe = () => void;
+
 export interface EventBus<
   TEventMap extends Record<string, unknown>
 > {
@@ -13,10 +16,11 @@ export interface EventBus<
     event: DomainEvent<TEventMap[K]> & { name: K }
   ): void
 
+  // Ahora devuelve Unsubscribe en lugar de void
   on<K extends keyof TEventMap>(
     eventName: K,
     handler: EventHandler<TEventMap, K>
-  ): void
+  ): Unsubscribe
 
   off<K extends keyof TEventMap>(
     eventName: K,
@@ -26,8 +30,5 @@ export interface EventBus<
   on(
     eventName: '*',
     handler: (event: DomainEvent<any>) => void
-  ): void
+  ): Unsubscribe
 }
-
-// Implementaciones intercambiables (in-memory hoy, IPC mañana)
-// EventBus es el contrato publico usado por: modulos, tests, bootstrap

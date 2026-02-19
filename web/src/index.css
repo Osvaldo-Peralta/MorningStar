@@ -1,0 +1,24 @@
+@import "tailwindcss";
+
+@theme {
+  /* En v4, usamos el prefijo --color-* para que Tailwind genere las clases automáticamente */
+  --color-background: #0a0a0a;
+  --color-card: #121212;
+  
+  /* Animación Shimmer */
+  --animate-shimmer: shimmer 2s infinite;
+
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
+}
+
+/* En v4 no es estrictamente necesario usar @layer base para el body */
+body {
+  background-color: var(--color-background);
+  color: var(--color-zinc-200);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

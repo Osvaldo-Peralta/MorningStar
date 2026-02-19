@@ -1,22 +1,23 @@
 {
   "name": "morningstar",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-
   "scripts": {
     "dev": "vitest",
     "test": "vitest run",
     "build": "tsc",
-    "clean": "rm -rf dist"
+    "clean": "rimraf dist",
+    "web:dev": "vite web",
+    "web:build": "vite build web",
+    "web:preview": "vite preview web"
   },
-
   "dependencies": {
     "nanoid": "^5.1.6"
   },
-
   "devDependencies": {
     "@types/node": "^25.1.0",
+    "rimraf": "^6.1.3",
     "typescript": "^5.4.0",
     "vitest": "^4.0.18"
   }

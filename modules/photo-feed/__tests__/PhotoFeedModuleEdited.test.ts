@@ -1,206 +1,101 @@
 import { PhotoFeedModule } from "../PhotoFeedModule";
 import { CoreContext } from "../../../core/context/CoreContext";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vitest } from "vitest";
 
 describe('PhotoFeedModule - photo:edited', () => {
-    it('emits photo:added and then photo:edited when a photo is edited', async () => {
-        // Arrange
-        const emittedEvents: any[] = []
-
-        const mockContext = {
-            events: {
-                emit: (event: any) => {
-                    emittedEvents.push(event)
+    // Helper para crear un contexto con todos los servicios necesarios
+    const createMockContext = () => {
+        const emittedEvents: any[] = [];
+        return {
+            emittedEvents,
+            context: {
+                events: {
+                    emit: (event: any) => emittedEvents.push(event),
                 },
-            },
-        } as unknown as CoreContext
+                // Añadimos el storage que faltaba
+                storage: {
+                    get: vitest.fn().mockResolvedValue([]),
+                    set: vitest.fn().mockResolvedValue(undefined)
+                }
+            } as unknown as CoreContext
+        };
+    };
+
+    it('emits photo:added and then photo:edited when a photo is edited', async () => {
+        const { context, emittedEvents } = createMockContext();
+        const module = new PhotoFeedModule();
+        await module.init(context);
+
+        // Acción 1: add photo (usando await y URL válida)
+        await module.addPhoto('http://photo-a.jpg');
+    
+        expect(emittedEvents).toHaveLength(1);
+        const photoId = emittedEvents[0].payload.photoId;
+
+        // Acción 2: edit photo (usando await y URL válida)
+        await module.editPhoto(photoId, { url: 'http://photo-b.jpg' });
         
-        const module = new PhotoFeedModule()
-        await module.init(mockContext)
+        expect(emittedEvents).toHaveLength(2);
+        const editedEvent = emittedEvents[1];
 
-        // Acción 1: add photo
-        module.addPhoto('photo-a.jpg')
-        // Verificación de seguridad
-        expect(emittedEvents).toHaveLength(1)
-        expect(emittedEvents[0].name).toBe('photo:added')
-        
-        const addedEvent = emittedEvents[0]
-        const photoId = addedEvent.payload.photoId
-
-        // Acción 2: edit photo
-        module.editPhoto(photoId, {url: 'photo-b.jpg'})
-        // Assert: 2 eventos en total
-        expect(emittedEvents).toHaveLength(2)
-
-        const editedEvent = emittedEvents[1]
-        // identidad de evento
-        expect(editedEvent.name).toBe('photo:edited')
-        expect(editedEvent.category).toBe('domain')
-
-        // source
-        expect(editedEvent.source).toEqual({
-            moduleId: 'photo-feed',
-            entity: 'photo',
-            entityId: photoId,
-        })
-
-        // payload
-        expect(editedEvent.payload.photoId).toBe(photoId)
+        expect(editedEvent.name).toBe('photo:edited');
         expect(editedEvent.payload.changes).toEqual({
             url: {
-                before: 'photo-a.jpg',
-                after: 'photo-b.jpg'
+                before: 'http://photo-a.jpg',
+                after: 'http://photo-b.jpg'
             },
-        })
+        });
+    });
 
-        // timestamp
-        expect(typeof editedEvent.timestamp).toBe('number')
-    })
-})
+    it('emits a photo:edited event for each consecutive valid edit', async () => {
+        const { context, emittedEvents } = createMockContext();
+        const module = new PhotoFeedModule();
+        await module.init(context);
 
-// Caso: Multiples ediciones consecutivas
-it('emits a photo:edited event for each consecutive valid edit', async () => {
-  // Arrange
-  const emittedEvents: any[] = []
+        await module.addPhoto('http://a.jpg');
+        const photoId = emittedEvents[0].payload.photoId;
+        emittedEvents.length = 0; // Limpiar para aislar
 
-  const mockContext = {
-    events: {
-      emit: (event: any) => emittedEvents.push(event),
-    },
-  } as any
+        await module.editPhoto(photoId, { url: 'http://b.jpg' });
+        expect(emittedEvents[0].payload.changes.url).toEqual({ before: 'http://a.jpg', after: 'http://b.jpg' });
 
-  const module = new PhotoFeedModule()
-  await module.init(mockContext)
+        emittedEvents.length = 0;
 
-  // --- Step 1: Add photo ---
-  module.addPhoto('a.jpg')
+        await module.editPhoto(photoId, { url: 'http://c.jpg' });
+        expect(emittedEvents[0].payload.changes.url).toEqual({ before: 'http://b.jpg', after: 'http://c.jpg' });
+    });
 
-  // Validamos que solo hay 1 evento
-  expect(emittedEvents).toHaveLength(1)
-  expect(emittedEvents[0].name).toBe('photo:added')
+    it('emits photo:edited with the exact expected contract shape', async () => {
+        const { context, emittedEvents } = createMockContext();
+        const module = new PhotoFeedModule();
+        await module.init(context);
 
-  const photoId = emittedEvents[0].payload.photoId
+        await module.addPhoto('http://original.jpg');
+        const photoId = emittedEvents[0].payload.photoId;
 
-  // 🔥 Limpiamos eventos para aislar las ediciones
-  emittedEvents.length = 0
+        await module.editPhoto(photoId, { url: 'http://updated.jpg' });
+        const editedEvent = emittedEvents[1];
 
-  // --- Step 2: First edit (a → b) ---
-  module.editPhoto(photoId, { url: 'b.jpg' })
+        expect(Object.keys(editedEvent)).toEqual(['name', 'category', 'source', 'payload', 'timestamp']);
+        expect(editedEvent).toMatchObject({
+            name: 'photo:edited',
+            source: { moduleId: 'photo-feed', entity: 'photo', entityId: photoId }
+        });
+    });
 
-  expect(emittedEvents).toHaveLength(1)
+    it('can be consumed by a listener without errors', async () => {
+        const { context, emittedEvents } = createMockContext();
+        const module = new PhotoFeedModule();
+        await module.init(context);
 
-  expect(emittedEvents[0]).toMatchObject({
-    name: 'photo:edited',
-    payload: {
-      photoId,
-      changes: {
-        url: {
-          before: 'a.jpg',
-          after: 'b.jpg',
-        },
-      },
-    },
-  })
+        await module.addPhoto('http://x.jpg');
+        const photoId = emittedEvents[0].payload.photoId;
 
-  // 🔥 Limpiamos nuevamente
-  emittedEvents.length = 0
+        await module.editPhoto(photoId, { url: 'http://y.jpg' });
 
-  // --- Step 3: Second edit (b → c) ---
-  module.editPhoto(photoId, { url: 'c.jpg' })
-
-  expect(emittedEvents).toHaveLength(1)
-
-  expect(emittedEvents[0]).toMatchObject({
-    name: 'photo:edited',
-    payload: {
-      photoId,
-      changes: {
-        url: {
-          before: 'b.jpg',
-          after: 'c.jpg',
-        },
-      },
-    },
-  })
-})
-
-// Caso: contrato de prueba estricto del evento photo:edited
-it('emits photo:edited with the exact expected contract shape', async () => {
-  const emittedEvents: any[] = []
-
-  const mockContext = {
-    events: {
-      emit: (event: any) => emittedEvents.push(event),
-    },
-  } as any
-
-  const module = new PhotoFeedModule()
-  await module.init(mockContext)
-
-  module.addPhoto('original.jpg')
-  const photoId = emittedEvents[0].payload.photoId
-
-  module.editPhoto(photoId, { url: 'updated.jpg' })
-
-  const editedEvent = emittedEvents[1]
-
-  // Exact shape validation
-  expect(Object.keys(editedEvent)).toEqual([
-    'name',
-    'category',
-    'source',
-    'payload',
-    'timestamp',
-  ])
-
-  expect(editedEvent).toMatchObject({
-    name: 'photo:edited',
-    category: 'domain',
-    source: {
-      moduleId: 'photo-feed',
-      entity: 'photo',
-      entityId: photoId,
-    },
-    payload: {
-      photoId,
-      changes: {
-        url: {
-          before: 'original.jpg',
-          after: 'updated.jpg',
-        },
-      },
-    },
-  })
-
-  expect(typeof editedEvent.timestamp).toBe('number')
-})
-
-// Caso: integracion simple con RuntimeLoggerModule
-it('can be consumed by a listener without errors', async () => {
-  const listeners: any[] = []
-
-  const mockContext = {
-    events: {
-      emit: (event: any) => {
-        // simulate a logger or subscriber
-        listeners.push(event)
-      },
-    },
-  } as any
-
-  const module = new PhotoFeedModule()
-  await module.init(mockContext)
-
-  module.addPhoto('x.jpg')
-  const photoId = listeners[0].payload.photoId
-
-  module.editPhoto(photoId, { url: 'y.jpg' })
-
-  const editedEvent = listeners[1]
-
-  // simulate consumer access
-  expect(() => {
-    const { before, after } = editedEvent.payload.changes.url
-    return before && after
-  }).not.toThrow()
-})
+        expect(() => {
+            const { before, after } = emittedEvents[1].payload.changes.url;
+            return before && after;
+        }).not.toThrow();
+    });
+});

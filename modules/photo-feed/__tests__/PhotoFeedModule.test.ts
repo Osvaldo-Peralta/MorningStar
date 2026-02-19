@@ -1,4 +1,3 @@
-// modules/photo-feed/PhotoFeedModule.test.ts
 import { describe, it, expect } from 'vitest'
 import { PhotoFeedModule } from '../PhotoFeedModule'
 import { ModuleRegistry } from '../../../core/module'
@@ -8,17 +7,18 @@ describe('PhotoFeedModule', () => {
   it('adds and lists photos', async () => {
     const context = createMockCoreContext()
     const registry = new ModuleRegistry(context)
-
     const module = new PhotoFeedModule()
 
     registry.register(module)
     await registry.init(module.id)
     await registry.activate(module.id)
 
-    module.addPhoto('photo-1')
-    module.addPhoto('photo-2')
+    // URLs con prefijo http para pasar la validación
+    await module.addPhoto('http://photo-1.jpg')
+    await module.addPhoto('http://photo-2.jpg')
+    
     const photos = module.listPhotos()
 
-    expect(photos).toEqual(['photo-1', 'photo-2'])
+    expect(photos).toEqual(['http://photo-1.jpg', 'http://photo-2.jpg'])
   })
 })

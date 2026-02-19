@@ -10,9 +10,15 @@
     "skipLibCheck": true,
     "types": ["vitest/globals"]
   },
-  "exclude": [
-    "node_modules",
-    "dist",
-    "**/*.test.ts"
-  ]
+  "include": [
+      "core/**/*",
+      "modules/**/*",
+      "bootstrap.ts"
+    ],
+    "exclude": [
+      "node_modules",
+      "dist",
+      "web",
+      "**/*.test.ts"
+    ]
 }
