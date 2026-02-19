@@ -13,12 +13,19 @@ describe('PhotoFeedModule', () => {
     await registry.init(module.id)
     await registry.activate(module.id)
 
-    // URLs con prefijo http para pasar la validación
     await module.addPhoto('http://photo-1.jpg')
     await module.addPhoto('http://photo-2.jpg')
     
-    const photos = module.listPhotos()
+    // Corregido el typo 'lisEntries' -> 'listEntries'
+    const photos = module.listEntries()
 
-    expect(photos).toEqual(['http://photo-1.jpg', 'http://photo-2.jpg'])
+    // Verificamos que se han añadido 2 elementos
+    expect(photos).toHaveLength(2)
+    
+    // Verificamos el contenido mapeando solo las URLs para la comparación
+    expect(photos.map(p => p.url)).toEqual(['http://photo-1.jpg', 'http://photo-2.jpg'])
+    
+    // Opcional: Verificar que tienen IDs generados
+    expect(photos[0].id).toBeDefined()
   })
 })
