@@ -35,10 +35,15 @@ export class PhotoFeedService {
   }
 
   removePhoto(photoId: string): void {
-    const initialLength = this.photos.length;
-    this.photos = this.photos.filter(p => p.id !== photoId);
+    const originalLength = this.photos.length;
+    
+    // Enfoque funcional y limpio
+    this.photos = this.photos.filter(photo => photo.id !== photoId);
 
-    if(this.photos.length === initialLength) throw new Error(`Photo ${photoId} not found`)
+    // Validación de que la operación ocurrió
+    if (this.photos.length === originalLength) {
+      throw new Error(`Photo ${photoId} not found`);
+    }
   }
 
   /* --- Queries --- */

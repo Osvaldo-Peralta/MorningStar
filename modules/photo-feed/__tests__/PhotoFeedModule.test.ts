@@ -68,3 +68,42 @@ it('throws an error when trying to remove a non-existent photo', async () => {
   await expect(module.removePhoto('invalid-id'))
     .rejects.toThrow('Photo invalid-id not found')
 })
+
+/* ----- Test de integracióon para editPhoto -----*/
+
+it('should edit a photo and emit photo:edited event', async () => {
+  const context = createMockCoreContext()
+  const module = new PhotoFeedModule()
+  
+  // Espía para verificar la comunicación del sistema
+  const eventSpy = vitest.spyOn(context.events, 'emit')
+  
+  await module.init(context)
+
+  // 1. Preparación: Añadir una foto inicial
+  const oldUrl = 'http://old-url.com/image.jpg'
+  await module.addPhoto(oldUrl)
+  const photoId = module.listEntries()[0].id
+
+  // 2. Acción: Editar la URL
+  const newUrl = 'http://new-url.com/updated.jpg'
+  await module.editPhoto(photoId, { url: newUrl })
+
+  // 3. Verificación de Estado (Query)
+  const photos = module.listEntries()
+  expect(photos[0].url).toBe(newUrl)
+
+  // 4. Verificación de Contrato (Evento) - CORREGIDO
+  expect(eventSpy).toHaveBeenCalledWith(expect.objectContaining({
+    name: 'photo:edited',
+    payload: expect.objectContaining({
+      photoId: photoId,
+      changes: {
+        url: {
+          before: oldUrl,
+          after: newUrl
+        }
+      }
+    })
+  }))
+})
