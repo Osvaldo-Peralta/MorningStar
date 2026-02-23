@@ -1,5 +1,5 @@
 // web/src/components/PhotoFeed.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { PhotoCard } from './photo-feed/PhotoCard';
 import { Photo } from '@modules/photo-feed/domain/Photo';
@@ -36,24 +36,24 @@ export const PhotoFeed: React.FC = () => {
     }
   };
 
-  const handleEdit = async (id: string, currentUrl: string) => {
-    const newUrl = prompt('Nueva URL de la imagen: ', currentUrl);
+  const handleEdit = useCallback(async (photo: Photo) => {
+    const newUrl = prompt('Nueva URL de la imagen: ', photo.url);
 
-    if(newUrl && newUrl !== currentUrl) {
+    if(newUrl && newUrl !== photo.url) {
       try {
         // Llamada al metodo del modulo backend
-        await photoFeed.editPhoto(id, {url: newUrl});
+        await photoFeed.editPhoto(photo.id, {url: newUrl});
       } catch (e: any) {
         alert(e.message)
       }
     }
-  };
+  }, [photoFeed]);    // Solo se recrea si el moudulo cambia
 
-  const handleDelete = async (id: string) => {
-    if(confirm('¿Seguro que quieres eliminar esta foto?')) {
-      await photoFeed.removePhoto(id)
+  const handleDelete = useCallback(async (id: string) => {
+    if (confirm('¿Seguro que quieres eliminar esta foto?')) {
+      await photoFeed.removePhoto(id);
     }
-  };
+  }, [photoFeed])
 
   return (
     <div className="min-h-screen bg-background text-slate-200">
@@ -74,11 +74,10 @@ export const PhotoFeed: React.FC = () => {
         <div className="columns-1 sm:columns-2 lg:columns-3 gap-8 space-y-8">
           {photos.map((photo) => (
             <PhotoCard
-              key={photo.id}
-              url={photo.url}
-              id={photo.id}
+              key={photo.id}      // Se mantiene para el algoritmo de reconciliación de React
+              photo={photo}       // Pasamos la entidad completa (aquí van url e id)
               onDelete={() => handleDelete(photo.id)}
-              onEdit={() => handleEdit(photo.id, photo.url)}
+              onEdit={handleEdit} // Referencia estable gracias al useCallback
             />
           ))}
         </div>

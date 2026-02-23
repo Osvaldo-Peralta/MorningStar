@@ -2,27 +2,27 @@
 import { useState } from 'react';
 import { ActionMenu } from '../ui/ActionMenu';
 import type { ActionItem } from '../ui/ActionMenu';
+import type { Photo } from '@modules/photo-feed/domain/Photo';
 
 interface PhotoCardProps {
-  url: string;
-  id: string;
-  onDelete: () => void; // Nueva prop
-  onEdit: () => void;   // Nueva prop para accion editar
+  photo: Photo                       // Se pasa toda la entidad completa
+  onDelete: () => void;              // Nueva prop
+  onEdit: (photo: Photo) => void;    // el callback ahora devuelve el contexto completo
 }
 
-export const PhotoCard = ({ url, id, onDelete, onEdit }: PhotoCardProps) => {
+export const PhotoCard = ({ photo, onDelete, onEdit }: PhotoCardProps) => {
   const [isLoaded, setIsLoaded] = useState(false);
 
   // Se definen las acciones que alimentaran al ActionMenu
   const photoActions: ActionItem[] = [
     {
-      label: 'Editar',
+      label: 'Editar URL',
       icon: (
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
         </svg>
       ),
-      onClick: onEdit
+      onClick: () => onEdit(photo) // paso el objeto a invocar
     },
     {
       label: 'Eliminar',
@@ -48,7 +48,8 @@ export const PhotoCard = ({ url, id, onDelete, onEdit }: PhotoCardProps) => {
       </div>
 
       <img 
-        src={url} 
+        src={photo.url} 
+        alt={`Photo ${photo.id}`}
         onLoad={() => setIsLoaded(true)}
         className={`w-full object-cover transition-all duration-1000 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'}`}
       />
