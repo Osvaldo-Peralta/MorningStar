@@ -1,3 +1,4 @@
+// web/src/components/PhotoFeed.tsx
 import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { PhotoCard } from './photo-feed/PhotoCard';
@@ -19,6 +20,7 @@ export const PhotoFeed: React.FC = () => {
     
     return () => {
       subAdd();
+      subEdit()
       subRemove();
     }
     }, [photoFeed, events]);
@@ -34,11 +36,24 @@ export const PhotoFeed: React.FC = () => {
     }
   };
 
+  const handleEdit = async (id: string, currentUrl: string) => {
+    const newUrl = prompt('Nueva URL de la imagen: ', currentUrl);
+
+    if(newUrl && newUrl !== currentUrl) {
+      try {
+        // Llamada al metodo del modulo backend
+        await photoFeed.editPhoto(id, {url: newUrl});
+      } catch (e: any) {
+        alert(e.message)
+      }
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if(confirm('¿Seguro que quieres eliminar esta foto?')) {
       await photoFeed.removePhoto(id)
     }
-  }
+  };
 
   return (
     <div className="min-h-screen bg-background text-slate-200">
@@ -61,8 +76,9 @@ export const PhotoFeed: React.FC = () => {
             <PhotoCard
               key={photo.id}
               url={photo.url}
-              index={photo.id}
-              onDelete={() => handleDelete(photo.id)} // Ahora pasamos el ID real
+              id={photo.id}
+              onDelete={() => handleDelete(photo.id)}
+              onEdit={() => handleEdit(photo.id, photo.url)}
             />
           ))}
         </div>

@@ -1,3 +1,4 @@
+// web/src/components/photo-feed/PhotoSkeleton.tsx
 export const PhotoSkeleton = () => (
     <div className="break-inside-avoid rounded-2xl border border-white/5 bg-card overflow-hidden">
         <div className="relative w-full aspect-[4/5] bg-zinc-900 animate-pulse">
