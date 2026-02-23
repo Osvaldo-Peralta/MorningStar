@@ -37,13 +37,17 @@ export const PhotoCard = ({ photo, onDelete, onEdit }: PhotoCardProps) => {
   ];
 
   return (
-    <div className="relative group break-inside-avoid rounded-3xl overflow-hidden bg-zinc-900 border border-white/5 transition-all duration-500 hover:border-white/15 hover:shadow-[0_0_40px_-15px_rgba(255,255,255,0.1)]">
+    <div className="animate-reveal 
+      relative group break-inside-avoid rounded-4xl overflow-hidden 
+      bg-card border border-white/3
+      transition-all duration-500 var(--ease-premium)
+      hover:border-white/10 hover:shadow-2xl hover:shadow-white/2">
       { /* Skeleton Loader */ }
       {!isLoaded && (
         <div className="w-full aspect-square bg-zinc-900 animate-pulse" />
       )}
       {/* Nuevo ActionMenu personalizable */}
-      <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="absolute top-5 right-5 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
         <ActionMenu actions={photoActions} />
       </div>
 
@@ -51,8 +55,12 @@ export const PhotoCard = ({ photo, onDelete, onEdit }: PhotoCardProps) => {
         src={photo.url} 
         alt={`Photo ${photo.id}`}
         onLoad={() => setIsLoaded(true)}
-        className={`w-full object-cover transition-all duration-1000 ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-110'}`}
+        className={`w-full h-auto object-cover transition-all duration-1000 var(--ease-premium) ${isLoaded ? 'opacity-100 scale-100' : 'opacity-0 scale-105'} group-hover:scale-110`}
+        /* Remover el 'group-hover:scale-110' si no se desea el efecto de zoom al hover de cada foto*/
       />
+
+      {/* Overlay sutil para mejorar el contraste de los botones */}
+      <div className='absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none'></div>
     </div>
   );
 };

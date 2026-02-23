@@ -1,40 +1,78 @@
 @import "tailwindcss";
 
 @theme {
-  /* En v4, usamos el prefijo --color-* para que Tailwind genere las clases automáticamente */
+  /* --- Tokens de Color --- */
   --color-background: #0a0a0a;
   --color-card: #121212;
   
-  /* Animación Shimmer */
-  --animate-shimmer: shimmer 2s infinite;
+  /* --- Curvas de Movimiento (Premium) --- */
+  /* Esta curva se llama 'Quart Out': empieza rápido y frena con mucha suavidad */
+  --ease-premium: cubic-bezier(0.25, 1, 0.5, 1);
 
-  /* Animación de entrada suave para el menú */
-  --animate-menu-in: menu-in 0.2 ease-out;
+  /* --- Registro de Animaciones Modulares --- */
+  /* 1. Reveal: Para la entrada de elementos a la vista */
+  --animate-reveal: reveal 0.7s var(--ease-premium) both;
+  
+  /* 2. Menu-In: Para componentes flotantes (reemplazando tu versión anterior) */
+  --animate-menu-in: menu-in 0.3s var(--ease-premium);
+  
+  /* 3. Shimmer: Para el skeleton de carga */
+  --animate-shimmer: shimmer 2s infinite linear;
 
-  @keyframes shimmer {
-    from { transform: translateX(-100%); }
-    to { transform: translateX(100%); }
+  /* 4. Boton: Para el boton de 'UPLOAD'*/
+  --animate-button-press: button-press 0.2 var(--ease-premium);
+
+  /* --- Keyframes --- */
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.97);
+      filter: blur(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
   }
 
   @keyframes menu-in {
     from {
       opacity: 0;
-      transform: scale(0.95) translateY(-10px);
-      filter: blur(10px);
+      transform: translateY(-8px) scale(0.95);
+      filter: blur(4px);
     }
-    to{ 
+    to {
       opacity: 1;
-      transform: scale(1) trsnalateY(0);
+      transform: translateY(0) scale(1);
       filter: blur(0);
     }
   }
+
+  @keyframes button-press {
+    0% {transform: scale(1);}
+    50% {transform: scale(0.92);}
+    100 {transform: scale(1);}
+  }
+
+  @keyframes shimmer {
+    from { transform: translateX(-100%); }
+    to { transform: translateX(100%); }
+  }
 }
 
-/* En v4 no es estrictamente necesario usar @layer base para el body */
+  /* Aplicamos un delay incremental a las primeras 10 fotos para que aparezcan una tras otra */
+  .animate-reveal:nth-child(1) { animation-delay: 0.1s; }
+  .animate-reveal:nth-child(2) { animation-delay: 0.2s; }
+  .animate-reveal:nth-child(3) { animation-delay: 0.3s; }
+  .animate-reveal:nth-child(4) { animation-delay: 0.4s; }
+  .animate-reveal:nth-child(5) { animation-delay: 0.5s; }
+  /* ... puedes extenderlo tanto como desees */
+
+/* --- Base --- */
 body {
   background-color: var(--color-background);
   color: var(--color-zinc-200);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }

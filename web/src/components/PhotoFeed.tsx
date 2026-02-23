@@ -64,7 +64,7 @@ export const PhotoFeed: React.FC = () => {
         </div>
         <button 
           onClick={handleAddPhoto}
-          className="bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-slate-200 transition-all active:scale-95"
+          className="bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-slate-200 active:scale-95 active:animate-button-press transition-shadow duration-300 hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)]"
         >
           UPLOAD
         </button>
