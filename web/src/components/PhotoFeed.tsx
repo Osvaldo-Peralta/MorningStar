@@ -1,4 +1,3 @@
-// web/src/components/PhotoFeed.tsx
 import React, { useEffect, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { PhotoCard } from './photo-feed/PhotoCard';
@@ -38,7 +37,7 @@ export const PhotoFeed: React.FC = () => {
       try { await photoFeed.editPhoto(photoToEdit.id, {url: tempUrl}); setPhotoToEdit(null); } 
       catch (e: any) { alert(e.message); }
     }
-  }, [photoFeed]);    // Solo se recrea si el moudulo cambia
+  };
 
   const confirmDelete = async () => {
     if(photoToDelete) { await photoFeed.removePhoto(photoToDelete.id); setPhotoToDelete(null); }
