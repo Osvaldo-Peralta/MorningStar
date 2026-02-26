@@ -1,11 +1,11 @@
 // modules/photo-feed/PhotoFeedModule.ts
-import { AppModule } from '../../core/module'
-import { CoreContext } from '../../core/context/CoreContext'
-import { ModuleState } from '../../core/module/ModuleState.js'
+import { AppModule } from '@morningstar/core'
+import { CoreContext } from '@morningstar/core'
+import { ModuleState } from '@morningstar/core'
 import { PhotoFeedService } from './domain/PhotoFeedService.js'
 import { EditPhotoInput } from './domain/EditPhotoInput'
 import { PhotoAddedPayload, PhotoEditedPayload } from './events.js'
-import { DomainEvent } from '../../core/context/DomainEvent'
+import { DomainEvent } from '@morningstar/core'
 import { Photo } from './domain/Photo'
 
 export class PhotoFeedModule implements AppModule {

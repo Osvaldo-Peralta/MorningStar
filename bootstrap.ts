@@ -1,11 +1,11 @@
 // bootstrap.ts
-import { ModuleRegistry } from './core/module/ModuleRegistry.js'
-import { InMemoryEventBus } from './core/context/InMemoryEventBus.js'
-import { PhotoFeedModule } from './modules/photo-feed/PhotoFeedModule.js'
-import { CoreContext } from './core/context/CoreContext.js'
-import { RuntimeLoggerModule } from './modules/runtime-logger/RuntimeLoggerModule.js'
-import { CoreEventMap } from './core/context/CoreEventMap.js'
-import { LocalStorageAdapter } from './core/infraestructure/LocalStorageAdapter.js'
+import { ModuleRegistry } from './packages/core/module/ModuleRegistry.js'
+import { InMemoryEventBus } from './packages/core/context/InMemoryEventBus.js'
+import { PhotoFeedModule } from './packages/photo-feed/PhotoFeedModule.js'
+import { CoreContext } from './packages/core/context/CoreContext.js'
+import { RuntimeLoggerModule } from './packages/runtime-logger/RuntimeLoggerModule.js'
+import { CoreEventMap } from './packages/core/context/CoreEventMap.js'
+import { LocalStorageAdapter } from './packages/core/infraestructure/LocalStorageAdapter.js'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()

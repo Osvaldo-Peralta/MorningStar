@@ -1,5 +1,5 @@
 import { PhotoFeedModule } from "../PhotoFeedModule";
-import { CoreContext } from "../../../core/context/CoreContext";
+import { CoreContext } from '@morningstar/core'
 import { describe, it, expect, vitest } from "vitest";
 
 describe('PhotoFeedModule - photo:edited', () => {
