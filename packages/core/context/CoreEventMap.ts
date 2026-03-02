@@ -1,6 +1,6 @@
 // core/context/CoreEventMap.ts
 import { ModuleEvents } from "./events";
-import { PhotoAddedPayload, PhotoEditedPayload } from "../../modules/photo-feed/events";
+import { PhotoAddedPayload, PhotoEditedPayload } from "@morningstar/photo-feed";
 
 export interface CoreEventMap {
   // Lifecycle

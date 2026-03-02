@@ -5,17 +5,14 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
-    include: ['**/*.test.ts'],
-    exclude: [
-      'node_modules',
-      'dist',
-      'web'
-    ]
+    include: ['packages/**/*.test.ts'],
+    exclude: ['node_modules', 'dist']
   },
   resolve: {
     alias: {
-      '@core': path.resolve(__dirname, './core'),
-      '@modules': path.resolve(__dirname, './modules'),
+      '@morningstar/core': path.resolve(__dirname, 'packages/core'),
+      '@morningstar/photo-feed': path.resolve(__dirname, 'packages/photo-feed'),
+      '@morningstar/runtime-logger': path.resolve(__dirname, 'packages/runtime-logger'),
     },
   },
 })

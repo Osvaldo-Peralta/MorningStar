@@ -3,12 +3,12 @@
 --- Este es el puente entre mi Core en el backend y React
 */
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { ModuleRegistry } from '@core/module/ModuleRegistry';
-import { InMemoryEventBus } from '@core/context/InMemoryEventBus';
-import { LocalStorageAdapter } from '@core/infraestructure/LocalStorageAdapter'
-import { RuntimeLoggerModule } from '@modules/runtime-logger/RuntimeLoggerModule';
-import { PhotoFeedModule } from '@modules/photo-feed/PhotoFeedModule';
-import type { CoreEventMap } from '@core/context/CoreEventMap';
+import { ModuleRegistry } from '@morningstar/core';
+import { InMemoryEventBus } from '@morningstar/core';
+import { LocalStorageAdapter } from '@morningstar/core';
+import { RuntimeLoggerModule } from '@morningstar/runtime-logger';
+import { PhotoFeedModule } from '@morningstar/photo-feed';
+import type { CoreEventMap } from '@morningstar/core';
 
 interface AppContextType {
   photoFeed: PhotoFeedModule;

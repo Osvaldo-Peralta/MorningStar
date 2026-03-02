@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ActionMenu } from '../ui/ActionMenu';
 import type { ActionItem } from '../ui/ActionMenu';
-import type { Photo } from '@modules/photo-feed/domain/Photo';
+import type { Photo } from '@morningstar/photo-feed/domain/Photo';
 
 interface PhotoCardProps {
   photo: Photo;

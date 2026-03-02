@@ -2,23 +2,29 @@
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
-    "moduleResolution": "Node",
-    "rootDir": ".",
-    "outDir": "dist",
+    "moduleResolution": "bundler",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": ["vitest/globals"]
+
+    "baseUrl": ".",
+    "paths": {
+      "@morningstar/core": ["packages/coreages/core"],
+      "@morningstar/photo-feed": ["packages/photo-feed"],
+      "@morningstar/runtime-logger": ["packages/runtime-logger"]
+    },
+
+    "rootDir": ".",
+    "outDir": "dist",
+    "declaration": true,
+    "sourceMap": true
   },
   "include": [
-      "core/**/*",
-      "modules/**/*",
-      "bootstrap.ts"
-    ],
-    "exclude": [
-      "node_modules",
-      "dist",
-      "web",
-      "**/*.test.ts"
-    ]
+    "packages/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "apps/web"
+  ]
 }

@@ -1,8 +1,8 @@
-import { AppModule } from '../../core/module'
-import { ModuleState } from '../../core/module/ModuleState.js'
-import { CoreContext } from '../../core/context/CoreContext'
-import { DomainEvent } from '../../core/context/DomainEvent'
-import { CoreEventMap } from '../../core/context/CoreEventMap'
+import { AppModule } from '@morningstar/core'
+import { ModuleState } from '@morningstar/core'
+import { CoreContext } from '@morningstar/core'
+import { DomainEvent } from '@morningstar/core'
+import { CoreEventMap } from '@morningstar/core'
 
 export class RuntimeLoggerModule implements AppModule {
   readonly id = 'runtime-logger'
