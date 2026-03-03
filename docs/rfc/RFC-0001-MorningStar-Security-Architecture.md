@@ -1,0 +1,6 @@
+- RFC: 0001
+- Title: MorningStar Core Security Architecture
+- Status: Accepted
+- Author: MorningStar Core Team
+- Version: 1.0
+- Date: 2026-03-02
