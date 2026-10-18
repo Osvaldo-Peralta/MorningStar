@@ -1,4 +1,7 @@
 # MorningStar
+
+[![CI](https://github.com/Osvaldo-Peralta/MorningStar/actions/workflows/ci.yml/badge.svg)](https://github.com/Osvaldo-Peralta/MorningStar/actions/workflows/ci.yml)
+
 La base solida de una aplicación muy poderosa
 
 ## Requisitos

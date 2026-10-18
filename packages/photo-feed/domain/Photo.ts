@@ -2,53 +2,52 @@
 import type { EditPhotoInput } from './EditPhotoInput.js'
 import type { PhotoChanges } from "./PhotoChanges.js"
 
+/**
+ * Agregado Photo (raíz de dominio del módulo photo-feed).
+ *
+ * El estado mutable usa campos privados reales de JavaScript (`#`), de modo
+ * que la información interna no se filtra al serializar (JSON.stringify,
+ * console.log, structuredClone). La lectura se expone mediante getters.
+ */
 export class Photo {
   readonly id: string
-  private _url: string
+  #url: string
 
   readonly createdAt: number
-  private _updatedAt: number
+  #updatedAt: number
 
   constructor(id: string, url: string) {
     const now = Date.now()
 
     this.id = id
-    this._url = url
+    this.#url = url
     this.createdAt = now
-    this._updatedAt = now
+    this.#updatedAt = now
   }
 
   get url(): string {
-    return this._url
+    return this.#url
   }
 
   get updatedAt(): number {
-    return this._updatedAt
+    return this.#updatedAt
   }
 
   edit(input: EditPhotoInput): PhotoChanges {
     const changes: PhotoChanges = {}
 
-    if(input.url !== undefined && input.url !== this._url) {
+    if(input.url !== undefined && input.url !== this.#url) {
       changes.url = {
-        before: this._url,
+        before: this.#url,
         after: input.url
       }
-      this._url = input.url
+      this.#url = input.url
     }
 
     if (Object.keys(changes).length > 0) {
-      this._updatedAt = Date.now()
+      this.#updatedAt = Date.now()
     }
 
     return changes
   }
 }
-
-/*
-export type Photo = {
-  id: string
-  url: string
-  createdAt: number
-}
-*/

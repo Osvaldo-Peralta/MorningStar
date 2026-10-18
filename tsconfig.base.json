@@ -13,6 +13,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "erasableSyntaxOnly": true,
 
     /* Output */
     "declaration": true,

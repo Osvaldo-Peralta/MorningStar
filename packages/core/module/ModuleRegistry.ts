@@ -15,10 +15,11 @@ import type { CoreEventMap } from '../context/CoreEventMap.js'
 
 export class ModuleRegistry {
   private readonly modules = new Map<string, AppModule>()
+  private readonly context: CoreContext<CoreEventMap>
 
-  constructor(
-    private readonly context: CoreContext<CoreEventMap>
-  ) {}
+  constructor(context: CoreContext<CoreEventMap>) {
+    this.context = context
+  }
 
   private emitLifecycleEvent<K extends Extract<keyof CoreEventMap, string>>(
     name: K,

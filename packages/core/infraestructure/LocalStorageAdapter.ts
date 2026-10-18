@@ -1,7 +1,11 @@
 import type { Storage } from "../context/Storage.js";
 
 export class LocalStorageAdapter implements Storage {
-    constructor(private readonly prefix: string = '_app') {}
+    private readonly prefix: string;
+
+    constructor(prefix: string = '_app') {
+        this.prefix = prefix;
+    }
 
     private getFullKey(key: string): string {
         return `${this.prefix}${key}`;

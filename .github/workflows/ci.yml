@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Cancela ejecuciones previas de la misma rama/PR para ahorrar minutos
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify · Node ${{ matrix.node-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Versión mínima soportada (README) + líneas LTS actuales
+        node-version: ['20.x', '22.x', '24.x']
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node ${{ matrix.node-version }}
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build packages + bootstrap (tsc -b)
+        run: npm run build
+
+      - name: Unit & integration tests (vitest)
+        run: npm test
+
+      - name: Backend smoke test (bootstrap en Node)
+        run: npm run bootstrap
+
+      - name: Web build (vite)
+        run: npm run web:build

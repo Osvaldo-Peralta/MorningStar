@@ -17,8 +17,11 @@ import type { Storage } from "../context/Storage.js";
  */
 export class InMemoryStorageAdapter implements Storage {
     private readonly store = new Map<string, unknown>();
+    private readonly prefix: string;
 
-    constructor(private readonly prefix: string = '_app') {}
+    constructor(prefix: string = '_app') {
+        this.prefix = prefix;
+    }
 
     private getFullKey(key: string): string {
         return `${this.prefix}${key}`;
