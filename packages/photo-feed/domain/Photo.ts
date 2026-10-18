@@ -1,9 +1,6 @@
 // modules/photo-feed/domain/Photo.ts
-import { PhotoChanges } from "./PhotoChanges"
-
-export interface EditPhotoInput {
-  url?: string
-}
+import type { EditPhotoInput } from './EditPhotoInput.js'
+import type { PhotoChanges } from "./PhotoChanges.js"
 
 export class Photo {
   readonly id: string

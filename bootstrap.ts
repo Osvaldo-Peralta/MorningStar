@@ -1,29 +1,36 @@
 // bootstrap.ts
-import { ModuleRegistry } from './packages/core/module/ModuleRegistry.js'
-import { InMemoryEventBus } from './packages/core/context/InMemoryEventBus.js'
-import { PhotoFeedModule } from './packages/photo-feed/PhotoFeedModule.js'
-import { CoreContext } from './packages/core/context/CoreContext.js'
-import { RuntimeLoggerModule } from './packages/runtime-logger/RuntimeLoggerModule.js'
-import { CoreEventMap } from './packages/core/context/CoreEventMap.js'
-import { LocalStorageAdapter } from './packages/core/infraestructure/LocalStorageAdapter.js'
+// Punto de entrada del backend (Node ESM).
+// Consume únicamente las APIs públicas de cada paquete (contratos),
+// nunca rutas internas: `@morningstar/*`.
+import type { CoreContext, CoreEventMap } from '@morningstar/core'
+import {
+  InMemoryEventBus,
+  InMemoryStorageAdapter,
+  ModuleRegistry,
+} from '@morningstar/core'
+import { PhotoFeedModule } from '@morningstar/photo-feed'
+import { RuntimeLoggerModule } from '@morningstar/runtime-logger'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()
-  // Instancia del adaptador real
-  const storage = new LocalStorageAdapter('v0.2.0_');
+  // Adaptador volátil: en Node no existe `localStorage`.
+  // Cuando llegue la Fase 1 (persistencia remota) se sustituirá
+  // por el adaptador correspondiente sin tocar el dominio.
+  const storage = new InMemoryStorageAdapter('v0.3.0_')
+
   const context: CoreContext<CoreEventMap> = {
-  events: eventBus,
-      storage,                                        // Se inyecta el adaptador real
-      permission: {
-        has: (permission) => true,
-        request: async (permission) => true
-      },
-      logger: console,
-      config: {
-        environment: 'development',
-        version: '0.2.0',
-      },
-    }
+    events: eventBus,
+    storage,                                        // Se inyecta el adaptador
+    permission: {
+      has: (permission) => true,
+      request: async (permission) => true
+    },
+    logger: console,
+    config: {
+      environment: 'development',
+      version: '0.3.0',
+    },
+  }
 
   const registry = new ModuleRegistry(context)
   const runtimeLogger = new RuntimeLoggerModule()
@@ -32,21 +39,22 @@ async function bootstrap() {
   await runtimeLogger.init(context)
 
   // A partir de aqui el orden sera determinista
-  registry.register(runtimeLogger)          // Emitira REGISTER (runtimeLogger)
-  await registry.init(runtimeLogger.id)     // Emitira INTIALIZED (runtimeLogger)
-  await registry.activate(runtimeLogger.id) // Emitira ACTIVATE (RuntimeLogger)
+  registry.register(runtimeLogger)          // Emitira REGISTERED (runtimeLogger)
+  await registry.init(runtimeLogger.id)     // Emitira INITIALIZED (runtimeLogger)
+  await registry.activate(runtimeLogger.id) // Emitira ACTIVATED (runtimeLogger)
 
   const photoFeed = new PhotoFeedModule()
-  registry.register(photoFeed)              // Emitira REGISTERES (photoFeed)
+  registry.register(photoFeed)              // Emitira REGISTERED (photoFeed)
   await registry.init(photoFeed.id)
   await registry.activate(photoFeed.id)
 
-  photoFeed.addPhoto('https://example.com/photo1.jpg')
-  photoFeed.addPhoto('https://example.com/photo2.jpg')
+  await photoFeed.addPhoto('https://example.com/photo1.jpg')
+  await photoFeed.addPhoto('https://example.com/photo2.jpg')
 
   console.log('Photos Initialized: ', photoFeed.listEntries())
 }
 
 bootstrap().catch(err => {
-  console.error('Bootstrap failer: ', err)
+  console.error('Bootstrap failed: ', err)
+  process.exitCode = 1
 })

@@ -1,4 +1,4 @@
-import { PhotoFeedModule } from "../PhotoFeedModule"
+import { PhotoFeedModule } from "../PhotoFeedModule.js"
 import { describe, it, expect, vitest } from "vitest"
 
 describe('PhotoFeedModule - Edición de Fotos', () => {

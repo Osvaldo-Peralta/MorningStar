@@ -1,4 +1,4 @@
-import { Storage } from "../context/Storage";
+import type { Storage } from "../context/Storage.js";
 
 export class LocalStorageAdapter implements Storage {
     constructor(private readonly prefix: string = '_app') {}

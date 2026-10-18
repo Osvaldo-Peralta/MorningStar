@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { ModuleRegistry } from './ModuleRegistry'
-import { ModuleState } from './ModuleState'
-import { createMockCoreContext } from './__mocks__/mockCoreContext'
-import { createMockModule } from './__mocks__/mockModule'
+import { ModuleRegistry } from './ModuleRegistry.js'
+import { ModuleState } from './ModuleState.js'
+import { createMockCoreContext } from './__mocks__/mockCoreContext.js'
+import { createMockModule } from './__mocks__/mockModule.js'
 
 describe('ModuleRegistry lifecycle failures', () => {
   let registry: ModuleRegistry

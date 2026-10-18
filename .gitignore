@@ -1,5 +1,10 @@
-/node_modules
-/dist
+# Dependencias
+node_modules/
+
+# Artefactos de compilación
+dist/
+*.tsbuildinfo
 
 # Archivos innecesarios
-*.js
+*.log
+.DS_Store

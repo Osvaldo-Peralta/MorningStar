@@ -1,6 +1,6 @@
 // modules/photo-feed/__tests__/Photo.test.ts
 import { describe, expect, it } from "vitest";
-import { Photo } from "../domain/Photo";
+import { Photo } from "../domain/Photo.js";
 
 it('should initialized createdAt and updatedAt with same value', () => {
     const photo = new Photo('1', 'url')

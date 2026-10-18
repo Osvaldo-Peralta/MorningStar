@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { RuntimeLoggerModule } from './RuntimeLoggerModule' // Ajusta la ruta
+import { RuntimeLoggerModule } from './RuntimeLoggerModule.js' // Ajusta la ruta
 import { InMemoryEventBus, ModuleRegistry, CoreContext } from '@morningstar/core'
 
 describe('RuntimeLoggerModule', () => {

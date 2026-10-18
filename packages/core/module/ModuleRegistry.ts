@@ -1,6 +1,6 @@
 // core/module/ModuleRegistry.ts
 
-import { AppModule } from './AppModule.js'
+import type { AppModule } from './AppModule.js'
 import { ModuleState } from './ModuleState.js'
 import {
   ModuleAlreadyRegisteredError,
@@ -8,10 +8,10 @@ import {
   InvalidModuleStateError,
   ModuleLifecycleError
 } from './errors.js'
-import { CoreContext } from '../context/CoreContext.js'
+import type { CoreContext } from '../context/CoreContext.js'
 import { ModuleEvents } from '../context/events.js'
-import { DomainEvent } from '../context/DomainEvent.js'
-import { CoreEventMap } from '../context/CoreEventMap.js'
+import type { DomainEvent } from '../context/DomainEvent.js'
+import type { CoreEventMap } from '../context/CoreEventMap.js'
 
 export class ModuleRegistry {
   private readonly modules = new Map<string, AppModule>()

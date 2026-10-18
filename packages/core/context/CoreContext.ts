@@ -1,10 +1,10 @@
 // core/context/CoreContext.ts
-import type { EventBus } from "./EventBus"
-import type { Storage } from "./Storage"
-import type { Permissions } from "./Permission"
-import type { Logger } from "./Logger"
-import type { CoreConfig } from "./Config"
-import { CoreEventMap } from "./CoreEventMap"
+import type { EventBus } from "./EventBus.js"
+import type { Storage } from "./Storage.js"
+import type { Permissions } from "./Permission.js"
+import type { Logger } from "./Logger.js"
+import type { CoreConfig } from "./Config.js"
+import type { CoreEventMap } from "./CoreEventMap.js"
 
 // core/context/CoreContext.ts
 export interface CoreContext<

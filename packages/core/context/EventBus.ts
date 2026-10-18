@@ -1,5 +1,5 @@
 // core/context/EventBus.ts
-import { DomainEvent } from "./DomainEvent"
+import type { DomainEvent } from "./DomainEvent.js"
 
 export type EventHandler<
   TEventMap,

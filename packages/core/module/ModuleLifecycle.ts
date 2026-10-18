@@ -1,7 +1,7 @@
 // core/module/ModuleLifecycle.ts
 // Aquí definimos cuándo y cómo vive un módulo.
-import { CoreContext } from '../context/CoreContext'
-import { ModuleState } from './ModuleState'
+import type { CoreContext } from '../context/CoreContext.js'
+import type { ModuleState } from './ModuleState.js'
 
 // core/module/ModuleLifecycle.ts
 export interface ModuleLifecycle {

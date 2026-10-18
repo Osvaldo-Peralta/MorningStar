@@ -1,5 +1,5 @@
 // modules/photo-feed/events.ts
-import { PhotoChanges } from "./domain/PhotoChanges"
+import type { PhotoChanges } from "./domain/PhotoChanges.js"
 
 export const PHOTO_FEED_EVENTS = {
   PHOTO_ADDED: 'photo:added',

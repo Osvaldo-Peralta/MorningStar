@@ -1,18 +1,26 @@
-// core/module/index.ts
+// core/index.ts
 
-// de paquetes del core
-export * from './context/CoreContext'
-export * from './context/CoreEventMap'
-export * from './context/InMemoryEventBus'
-export * from './context/DomainEvent'
+// contratos del contexto (core)
+export * from './context/CoreContext.js'
+export * from './context/CoreEventMap.js'
+export * from './context/InMemoryEventBus.js'
+export * from './context/DomainEvent.js'
+export * from './context/EventBus.js'
+export * from './context/events.js'
+export * from './context/EventCategory.js'
+export * from './context/Storage.js'
+export * from './context/Permission.js'
+export * from './context/Logger.js'
+export * from './context/Config.js'
 
-// de paquetes del module
-export * from './module/AppModule'
-export * from './module/ModuleLifecycle'
-export * from './module/ModuleMetadata'
-export * from './module/ModuleState'
-export * from './module/ModuleRegistry'
-export * from './module/errors'
+// sistema de módulos
+export * from './module/AppModule.js'
+export * from './module/ModuleLifecycle.js'
+export * from './module/ModuleMetadata.js'
+export * from './module/ModuleState.js'
+export * from './module/ModuleRegistry.js'
+export * from './module/errors.js'
 
-// de paquetes del infraestructure
-export * from './infraestructure/LocalStorageAdapter'
+// adaptadores de infraestructura
+export * from './infraestructure/LocalStorageAdapter.js'
+export * from './infraestructure/InMemoryStorageAdapter.js'

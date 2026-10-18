@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { PhotoCard } from './photo-feed/PhotoCard';
-import { Photo } from '@morningstar/photo-feed/domain/Photo'
+import type { Photo } from '@morningstar/photo-feed';
 import { Modal } from './ui/Modal';
 
 export const PhotoFeed: React.FC = () => {

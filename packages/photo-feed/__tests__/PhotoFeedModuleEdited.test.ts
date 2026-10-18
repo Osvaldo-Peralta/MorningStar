@@ -1,4 +1,4 @@
-import { PhotoFeedModule } from "../PhotoFeedModule";
+import { PhotoFeedModule } from "../PhotoFeedModule.js";
 import { CoreContext } from '@morningstar/core'
 import { describe, it, expect, vitest } from "vitest";
 

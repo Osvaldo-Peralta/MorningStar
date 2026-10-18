@@ -1,5 +1,5 @@
 // core/module/AppModule.ts
-import { ModuleMetadata } from './ModuleMetadata'
-import { ModuleLifecycle } from './ModuleLifecycle'
+import type { ModuleMetadata } from './ModuleMetadata.js'
+import type { ModuleLifecycle } from './ModuleLifecycle.js'
 
 export interface AppModule extends ModuleMetadata, ModuleLifecycle {}

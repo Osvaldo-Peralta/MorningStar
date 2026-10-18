@@ -1,31 +1,55 @@
 # MorningStar
 La base solida de una aplicación muy poderosa
+
+## Requisitos
+- Node.js >= 20 (ESM nativo)
+- npm (el repositorio usa *npm workspaces*)
+
 ## Ejecución
-- Comando para compilar el proyecto
+
 ```bash
-tsc bootstrap.ts
-```
-Nota: Es posible que primero necesites instalar `tsc`
----
-- Comando para ejecutar `boostrap` (en el backend)
-```bash
-node bootstrap.js
+# Instalar dependencias (una sola vez)
+npm install
 ```
 
----
-
-## Comandos basicos para verificar la integridad del sistema
+### Backend (demo en Node)
 ```bash
-# Comandos para ejecutar en el backend
-npm run clean               # Limpiar compilación (si existe)
-npm run build               # Para compilar el proyecto
-npm run dev                 # Modo desarrollador (para tests, watch interactivo)
-
-# Comandos para ejecutar en el frontend
-npm run web:dev             # Inicializar el frontend
-npm run web:build           # Compilar el frontend
-npm run web:preview
-
-# Modo normal (CI Limpio)
-npm test                    # Ejecuta los tests una sola vez
+npm run bootstrap       # Compila (tsc -b) y ejecuta node dist/bootstrap.js
 ```
+
+Si quieres compilar y ejecutar por separado:
+```bash
+npm run build           # Compila paquetes + bootstrap con Project References
+node dist/bootstrap.js  # Ejecuta el bootstrap compilado
+```
+
+### Frontend
+```bash
+npm run web:dev         # Servidor de desarrollo (Vite)
+npm run web:build       # Compilar el frontend para producción
+npm run web:preview     # Previsualizar el build del frontend
+```
+
+### Tests y limpieza
+```bash
+npm test                # Ejecuta los tests una sola vez (Vitest)
+npm run dev             # Modo desarrollador (watch interactivo)
+npm run clean           # Elimina todos los artefactos de compilación
+```
+
+## Estructura del monorepo
+```
+packages/
+  core/                 # ModuleRegistry, lifecycle, EventBus, CoreContext,
+                        # puertos (Storage, Permission, Logger) y adaptadores
+  photo-feed/           # Módulo de dominio: fotos (agregar, editar, eliminar)
+  runtime-logger/       # Módulo pasivo de logging basado en eventos
+apps/
+  web/                  # Frontend React + Vite + Tailwind
+bootstrap.ts            # Punto de entrada del backend (Node ESM)
+```
+
+Cada paquete se compila de forma independiente (`composite` + Project
+References) y expone su contrato público mediante el campo `exports` de su
+`package.json`. Los módulos solo deben consumirse a través de su API pública
+(`@morningstar/<paquete>`), nunca mediante rutas internas.

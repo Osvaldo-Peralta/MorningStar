@@ -1,1 +1,1 @@
-export * from './RuntimeLoggerModule'
+export * from './RuntimeLoggerModule.js'

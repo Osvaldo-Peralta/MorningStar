@@ -1,7 +1,7 @@
 // modules/photo-feed/domain/PhotoFeedService.ts
 import { nanoid } from 'nanoid'
-import { EditPhotoInput } from './EditPhotoInput'
-import { PhotoChanges } from './PhotoChanges'
+import type { EditPhotoInput } from './EditPhotoInput.js'
+import type { PhotoChanges } from './PhotoChanges.js'
 import { Photo } from './Photo.js'
 
 export class PhotoFeedService {

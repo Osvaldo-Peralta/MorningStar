@@ -1,7 +1,7 @@
 import { describe, it, expect, vitest } from 'vitest'
-import { PhotoFeedModule } from '../PhotoFeedModule'
+import { PhotoFeedModule } from '../PhotoFeedModule.js'
 import { ModuleRegistry } from '@morningstar/core'
-import { createMockCoreContext } from '@morningstar/core/module/__mocks__/mockCoreContext'
+import { createMockCoreContext } from '../../core/module/__mocks__/mockCoreContext.js'
 
 describe('PhotoFeedModule', () => {
   it('adds and lists photos', async () => {

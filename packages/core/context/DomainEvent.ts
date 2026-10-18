@@ -1,5 +1,5 @@
 // core/context/DomainEvent.ts
-import { EventCategory } from "./EventCategory"
+import type { EventCategory } from "./EventCategory.js"
 
 export interface DomainEvent<TPayload = unknown> {
     readonly name: string

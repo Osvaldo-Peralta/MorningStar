@@ -1,9 +1,9 @@
 // core/module/__mocks__/mockCoreContext.ts
-import { InMemoryEventBus } from '../../context/InMemoryEventBus'
-import type { CoreContext } from '../../context/CoreContext'
-import type { Permissions } from '../../context/Permission'
-import type { Storage } from '../../context/Storage'
-import type { Logger } from '../../context/Logger'
+import { InMemoryEventBus } from '../../context/InMemoryEventBus.js'
+import type { CoreContext } from '../../context/CoreContext.js'
+import type { Permissions } from '../../context/Permission.js'
+import type { Storage } from '../../context/Storage.js'
+import type { Logger } from '../../context/Logger.js'
 
 const mockPermissions: Permissions = {
   has: () => true,

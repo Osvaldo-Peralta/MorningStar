@@ -1,6 +1,6 @@
 // core/context/InMemoryEventBus.ts
-import { EventBus, EventHandler, Unsubscribe } from "./EventBus"
-import { DomainEvent } from "./DomainEvent"
+import type { EventBus, EventHandler, Unsubscribe } from "./EventBus.js"
+import type { DomainEvent } from "./DomainEvent.js"
 
 export class InMemoryEventBus<
   TEventMap extends Record<string, unknown>

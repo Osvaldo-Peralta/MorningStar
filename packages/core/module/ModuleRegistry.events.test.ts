@@ -1,9 +1,9 @@
 // core/module/ModuleRegistry.events.test.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { ModuleRegistry } from './ModuleRegistry'
-import { ModuleEvents } from '../context/events'
-import { createMockCoreContext } from './__mocks__/mockCoreContext'
-import { createMockModule } from './__mocks__/mockModule'
+import { ModuleRegistry } from './ModuleRegistry.js'
+import { ModuleEvents } from '../context/events.js'
+import { createMockCoreContext } from './__mocks__/mockCoreContext.js'
+import { createMockModule } from './__mocks__/mockModule.js'
 describe('ModuleRegistry EventBus integration', () => {
   it('emits events on lifecycle transitions', async () => {
     const context = createMockCoreContext()

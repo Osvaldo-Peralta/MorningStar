@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "compilerOptions": {
+    /* Lenguaje y módulos: ESM canónico de Node */
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    /* Seguridad de tipos */
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+
+    /* Output */
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  }
+}
