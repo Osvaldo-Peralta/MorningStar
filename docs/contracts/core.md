@@ -185,6 +185,7 @@ export interface CoreContext<
   readonly events: EventBus<TEventMap>
   readonly storage: Storage
   readonly persistence?: PersistenceProvider  // ADR-0003 (miembro opcional)
+  readonly media?: MediaStorage               // ADR-0004 (miembro opcional)
   readonly permission: Permissions
   readonly logger: Logger
   readonly config: CoreConfig
@@ -294,22 +295,76 @@ Adaptadores:
 
 Todo adaptador debe pasar los contract-tests compartidos (ver §4).
 
+### 3.6 Puerto `MediaStorage` (ADR-0004)
+
+Almacenamiento de **binarios** (bytes opacos por id), separado de la metadata
+(que viaja como `MediaRef` dentro de los records de `Persistence`).
+
+```ts
+export interface MediaObject {
+  readonly id: string          // crypto.randomUUID()
+  readonly mimeType: string
+  readonly size: number
+  readonly createdAt: number
+}
+
+export interface MediaRef {    // lo único que el dominio persiste
+  readonly mediaId: string
+  readonly mimeType: string
+  readonly size: number
+}
+
+export interface MediaStorage {
+  put(data: Uint8Array, mimeType: string): Promise<MediaObject>
+  get(mediaId: string): Promise<Uint8Array | null>
+  getUri(mediaId: string): Promise<string | null>  // data:/blob:/file:/http: — efímera, no persistir
+  remove(mediaId: string): Promise<boolean>
+}
+```
+
+Reglas del contrato:
+- `put` lanza con data vacía o sin mimeType (`assertValidMediaInput`,
+  compartido por adaptadores); hace copia defensiva de los bytes.
+- La validación de negocio (tipos/tamaño) pertenece al módulo de dominio.
+- `getUri` puede devolver URIs efímeras: los consumidores las re-resuelven
+  por sesión, nunca las persisten.
+- `CoreContext.media` es **opcional**: los flujos de subida declaran el
+  requisito en su contrato.
+
+Adaptadores:
+
+| Adaptador | Paquete | `getUri` | Ámbito |
+|---|---|---|---|
+| `InMemoryMediaStorage` | core | `data:` | tests/bootstrap |
+| `IndexedDbMediaStorage` | core | `blob:` (cacheada; `dispose()` revoca) | navegador |
+| `FileMediaStorage` | `@morningstar/persistence-node` | `file://` | Node dev |
+| Remoto (object storage) | por decidir (Fase 3+) | `http(s)` | producción |
+
 ## 4. Utilidades de test — `@morningstar/core/testing`
 
 Subpath export con utilidades reutilizables (no forman parte del runtime de
 producción):
 
 ```ts
-import { defineRepositoryContractTests } from '@morningstar/core/testing'
+import {
+  defineRepositoryContractTests,
+  defineMediaStorageContractTests,
+} from '@morningstar/core/testing'
 
 defineRepositoryContractTests('MiAdaptador', {
   create: () => new MiAdaptador(/* almacén limpio */),
   destroy: async (provider) => { /* limpiar recursos */ },
 })
+
+defineMediaStorageContractTests('MiMediaAdapter', {
+  create: () => new MiMediaAdapter(/* almacén limpio */),
+})
 ```
 
-La suite verifica la semántica completa del puerto `Repository` (roundtrip,
-upsert, remove, list, aislamiento por namespace, copias defensivas).
+Las suites verifican la semántica completa de los puertos `Repository`
+(roundtrip, upsert, remove, list, aislamiento por namespace, copias
+defensivas) y `MediaStorage` (roundtrip de bytes, metadata, ids únicos,
+remove, rechazo de entrada vacía, copias defensivas).
 
 ---
 
@@ -322,3 +377,5 @@ upsert, remove, list, aislamiento por namespace, copias defensivas).
   se evaluará un adaptador distribuido detrás del mismo puerto.
 - El adaptador remoto de `Persistence` llegará con el backend multiusuario
   (Fase 3+); el puerto ya está congelado (ADR-0003).
+- `IndexedDbMediaStorage` depende de las APIs del navegador; sus tests usan
+  `fake-indexeddb` (devDependency de la raíz).

@@ -1,5 +1,6 @@
 // modules/photo-feed/domain/PhotoFeedService.ts
 import { nanoid } from 'nanoid'
+import type { MediaRef } from '@morningstar/core'
 import type { EditPhotoInput } from './EditPhotoInput.js'
 import type { PhotoChanges } from './PhotoChanges.js'
 import { Photo } from './Photo.js'
@@ -11,6 +12,14 @@ export class PhotoFeedService {
 
   addPhoto(url: string): Photo {
     const photo = new Photo(nanoid(), url)
+
+    this.photos.push(photo)
+    return photo
+  }
+
+  /** Crea un agregado desde un archivo subido (ADR-0004): fuente media + URI de sesión. */
+  addPhotoFromMedia(resolvedUri: string, media: MediaRef): Photo {
+    const photo = new Photo(nanoid(), resolvedUri, media)
 
     this.photos.push(photo)
     return photo

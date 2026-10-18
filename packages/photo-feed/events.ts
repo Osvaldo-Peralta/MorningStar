@@ -1,4 +1,5 @@
 // modules/photo-feed/events.ts
+import type { MediaRef } from '@morningstar/core'
 import type { PhotoChanges } from "./domain/PhotoChanges.js"
 
 export const PHOTO_FEED_EVENTS = {
@@ -9,8 +10,14 @@ export const PHOTO_FEED_EVENTS = {
 
 export interface PhotoAddedPayload {
   readonly photoId: string
+  /**
+   * En fotos por archivo subido, esta URL es la URI de sesión (efímera).
+   * Los consumidores durables deben preferir `media.mediaId` (ADR-0004).
+   */
   readonly url: string
   readonly addedAt: number
+  /** Campo aditivo v1 (ADR-0001): presente solo en fotos subidas como archivo. */
+  readonly media?: MediaRef
 }
 
 export interface PhotoEditedPayload {

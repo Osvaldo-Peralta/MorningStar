@@ -1,12 +1,19 @@
 // modules/photo-feed/PhotoFeedModule.ts
-import { ModuleState } from '@morningstar/core'
-import type { AppModule, CoreContext, DomainEvent, Repository } from '@morningstar/core'
+import { ModuleState, toMediaRef } from '@morningstar/core'
+import type {
+  AppModule,
+  CoreContext,
+  DomainEvent,
+  MediaStorage,
+  Repository,
+} from '@morningstar/core'
 import { nanoid } from 'nanoid'
 import { PhotoFeedService } from './domain/PhotoFeedService.js'
 import type { EditPhotoInput } from './domain/EditPhotoInput.js'
 import type { PhotoAddedPayload, PhotoEditedPayload } from './events.js'
 import { Photo } from './domain/Photo.js'
 import type { PhotoRecord } from './domain/PhotoRecord.js'
+import { validatePhotoMedia, type PhotoMediaInput } from './domain/mediaPolicy.js'
 
 /** Namespace del repositorio (ADR-0002/0003: `<modulo>:<recurso>`). */
 const REPO_NAMESPACE = 'photo-feed:photos'
@@ -21,6 +28,7 @@ export class PhotoFeedModule implements AppModule {
   private service?: PhotoFeedService
   private repository?: Repository<PhotoRecord>
   private storage?: CoreContext['storage']
+  private media?: MediaStorage
   private events?: CoreContext['events']
 
   // Se mantiene el estado inicial requerido por la interfaz AppModule
@@ -38,15 +46,23 @@ export class PhotoFeedModule implements AppModule {
     this.service = new PhotoFeedService()
     this.repository = context.persistence.repository<PhotoRecord>(REPO_NAMESPACE)
     this.storage = context.storage
+    this.media = context.media   // opcional: solo lo requiere addPhotoFromFile
     this.events = context.events
 
     // 1. Migración única del esquema legacy (URLs en Storage) al repositorio
     await this.migrateLegacyUrls()
 
-    // 2. Hidratación: records → agregados, preservando identidad estable
+    // 2. Hidratación: records → agregados, preservando identidad estable.
+    //    Las URIs de medios son efímeras: se re-resuelven en cada sesión.
     const records = await this.repository.list()
     for (const record of records) {
-      this.service.restore(Photo.fromRecord(record))
+      let resolvedMediaUri = ''
+      if (record.media && this.media) {
+        // Media huérfana (bytes perdidos) ⇒ URI vacía: la foto se conserva
+        // y la UI mostrará un placeholder (ADR-0004).
+        resolvedMediaUri = (await this.media.getUri(record.media.mediaId)) ?? ''
+      }
+      this.service.restore(Photo.fromRecord(record, resolvedMediaUri))
     }
   }
 
@@ -82,6 +98,7 @@ export class PhotoFeedModule implements AppModule {
     this.service = undefined
     this.events = undefined
     this.storage = undefined
+    this.media = undefined
     this.repository = undefined   // Limpieza completa de referencias
   }
 
@@ -102,6 +119,46 @@ export class PhotoFeedModule implements AppModule {
         photoId: photo.id,
         url: photo.url,
         addedAt: photo.updatedAt
+      },
+      timestamp: Date.now()
+    })
+  }
+
+  /**
+   * Subida real de archivo (Fase 2 / ADR-0004):
+   * validar (dominio) → almacenar binario (puerto MediaStorage) →
+   * agregado + metadata (Persistence) → evento.
+   *
+   * Requiere `context.media`; lanza errores descriptivos de validación
+   * (tipo MIME o tamaño fuera de política) sin efectos colaterales.
+   */
+  async addPhotoFromFile(input: PhotoMediaInput): Promise<void> {
+    if (!this.service || !this.events || !this.repository) throw new Error('Not Initialized')
+    if (!this.media) {
+      throw new Error(
+        "PhotoFeedModule requiere 'context.media' (MediaStorage) para subir archivos. Ver docs/contracts/photo-feed.md"
+      )
+    }
+
+    // Validación de negocio en el dominio: si falla, no se toca infraestructura
+    validatePhotoMedia(input)
+
+    const object = await this.media.put(input.data, input.mimeType)
+    const media = toMediaRef(object)
+    const uri = (await this.media.getUri(object.id)) ?? ''
+
+    const photo = this.service.addPhotoFromMedia(uri, media)
+    await this.repository.save(photo.toRecord())
+
+    this.events.emit({
+      name: 'photo:added',
+      category: 'domain',
+      source: {moduleId: this.id, entity: 'photo'},
+      payload: {
+        photoId: photo.id,
+        url: uri,        // URI de sesión (efímera); los consumidores durables usan payload.media
+        addedAt: photo.updatedAt,
+        media            // campo aditivo v1 (ADR-0001)
       },
       timestamp: Date.now()
     })
@@ -141,11 +198,23 @@ export class PhotoFeedModule implements AppModule {
   async removePhoto(photoId: string): Promise<void> {
     if(!this.service || !this.events || !this.repository) throw new Error('Not Initialized')
     
-    // 1. Ejecutamos la eliminación en dominio
+    // 1. Rescatamos la referencia al binario antes de eliminar el agregado
+    const target = this.service.getPhotoById(photoId)
+    // 2. Ejecutamos la eliminación en dominio
     this.service.removePhoto(photoId)
-    // 2. Sincronizamos con el repositorio
+    // 3. Sincronizamos con el repositorio
     await this.repository.remove(photoId)
-    // 3. Notificamos al sistema
+    // 4. Best-effort: limpiamos el binario asociado. Si falla, la metadata
+    //    ya está eliminada; el medio queda huérfano (ADR-0004 contempla un
+    //    GC futuro). El borrado lógico nunca falla por esto.
+    if (target?.media && this.media) {
+      try {
+        await this.media.remove(target.media.mediaId)
+      } catch {
+        // intentionally ignored (best-effort cleanup)
+      }
+    }
+    // 5. Notificamos al sistema
     this.events.emit({
       name: 'photo:removed',
       category: 'domain',

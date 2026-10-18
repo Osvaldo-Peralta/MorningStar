@@ -6,6 +6,7 @@ import type { Logger } from "./Logger.js"
 import type { CoreConfig } from "./Config.js"
 import type { CoreEventMap } from "./CoreEventMap.js"
 import type { PersistenceProvider } from "./Persistence.js"
+import type { MediaStorage } from "./MediaStorage.js"
 
 // core/context/CoreContext.ts
 export interface CoreContext<
@@ -20,6 +21,12 @@ export interface CoreContext<
    * `init` con un error explícito si falta.
    */
   readonly persistence?: PersistenceProvider
+  /**
+   * Almacenamiento de binarios multimedia (ADR-0004). Opcional: solo los
+   * flujos que suben archivos reales lo requieren (ej.
+   * `PhotoFeedModule.addPhotoFromFile`).
+   */
+  readonly media?: MediaStorage
   readonly permission: Permissions
   readonly logger: Logger
   readonly config: CoreConfig

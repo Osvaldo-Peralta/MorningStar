@@ -1,10 +1,10 @@
 # `@morningstar/persistence-node`
 
-Adaptadores de persistencia para **Node** que implementan el puerto
-`PersistenceProvider` de `@morningstar/core` (ADR-0003).
+Adaptadores de persistencia y medios para **Node** que implementan los puertos
+`PersistenceProvider` y `MediaStorage` de `@morningstar/core` (ADR-0003/0004).
 
 - Estabilidad: **Experimental**
-- Dependencias: `@morningstar/core` (contratos), `node:fs/promises`, `node:path`
+- Dependencias: `@morningstar/core` (contratos), `node:fs/promises`, `node:path`, `node:url`
 
 ## `FilePersistenceAdapter`
 
@@ -35,3 +35,32 @@ console.log(await repo.list())
 - No escala a datasets grandes (read-modify-write del archivo completo).
 - Producción multiusuario usará el adaptador remoto (Fase 3+), que implementará
   el mismo puerto sin tocar el dominio.
+
+## `FileMediaStorage`
+
+Adaptador durable de **binarios** (puerto `MediaStorage`, ADR-0004): cada
+medio vive en `<baseDir>/media/<id>.bin` con su metadata en un sidecar
+`<id>.json`.
+
+```ts
+import { FileMediaStorage } from '@morningstar/persistence-node'
+
+const media = new FileMediaStorage({ baseDir: './.data' })
+
+const object = await media.put(bytes, 'image/png')
+console.log(await media.getUri(object.id)) // file:///…/.data/media/<id>.bin
+```
+
+### Garantías
+
+- `getUri` devuelve `file://` URLs (consumibles desde Node; un navegador no
+  puede cargarlas — en web se usa `IndexedDbMediaStorage`).
+- MediaId sanitizado antes de tocar el filesystem (sin path traversal).
+- Metadata con escritura atómica (temp + rename).
+- Contrato verificado por `defineMediaStorageContractTests` + test de
+  durabilidad entre reaperturas.
+
+### Limitaciones (por diseño)
+
+- **Single-process**, sin control de concurrencia.
+- Sin GC de huérfanos (binarios sin referencia); deuda registrada en ADR-0004.
