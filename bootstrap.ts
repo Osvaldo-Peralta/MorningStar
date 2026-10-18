@@ -99,14 +99,28 @@ async function bootstrap() {
   await registry.activate(authentication.id)
 
   await authentication.setPassword(verifiedUser.id, 'SecurePass123!')
-  const loginOk = await authentication.login('osvaldodev', 'SecurePass123!')
-  console.log('Login OK: ', loginOk)
+  const loginOk = await authentication.login(
+    'osvaldodev',
+    'SecurePass123!',
+    { fingerprint: 'bootstrap-demo-device' }
+  )
+  console.log('Login OK (sesión): ', {
+    userId: loginOk.userId,
+    sessionId: loginOk.session.sessionId.slice(0, 12) + '…',
+    expiresAt: new Date(loginOk.session.expiresAt).toISOString(),
+  })
+
+  const sessionInfo = await authentication.validateSession(loginOk.session.token)
+  console.log('Sesión válida: ', sessionInfo?.deviceFingerprint)
 
   try {
     await authentication.login('osvaldo@morningstar.dev', 'wrong-password')
   } catch (err) {
     console.log('Login rechazado (esperado): ', (err as Error).name)
   }
+
+  await authentication.logout(loginOk.session.token)
+  console.log('Logout: ', (await authentication.validateSession(loginOk.session.token)) === null)
 
   await photoFeed.addPhoto('https://example.com/photo1.jpg')
   await photoFeed.addPhoto('https://example.com/photo2.jpg')

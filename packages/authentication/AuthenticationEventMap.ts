@@ -5,6 +5,9 @@ import type {
   LoginSucceededPayload,
   PasswordChangedPayload,
   PasswordSetPayload,
+  SessionIssuedPayload,
+  SessionRevokedPayload,
+  SessionsInvalidatedPayload,
 } from './events.js'
 
 /** Mapa de eventos del módulo Authentication (contrato público). */
@@ -14,6 +17,9 @@ export interface AuthenticationEventMap {
   'auth:login-succeeded': LoginSucceededPayload
   'auth:login-failed': LoginFailedPayload
   'auth:account-locked': AccountLockedPayload
+  'auth:session-issued': SessionIssuedPayload
+  'auth:session-revoked': SessionRevokedPayload
+  'auth:sessions-invalidated': SessionsInvalidatedPayload
 }
 
 /**
@@ -27,5 +33,8 @@ declare module '@morningstar/core' {
     'auth:login-succeeded': LoginSucceededPayload
     'auth:login-failed': LoginFailedPayload
     'auth:account-locked': AccountLockedPayload
+    'auth:session-issued': SessionIssuedPayload
+    'auth:session-revoked': SessionRevokedPayload
+    'auth:sessions-invalidated': SessionsInvalidatedPayload
   }
 }

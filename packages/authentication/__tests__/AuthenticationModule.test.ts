@@ -107,11 +107,13 @@ describe('AuthenticationModule', () => {
     await expect(module.init(withoutPersistence as CoreContext<CoreEventMap>)).rejects.toThrow(/persistence/)
   })
 
-  it('setPassword + login exitoso por username devuelve userId y emite eventos', async () => {
+  it('setPassword + login exitoso por username devuelve userId + sesión y emite eventos', async () => {
     const user = await activeUserWithPassword()
 
     const result = await auth.login('osvaldo42', PASSWORD)
-    expect(result).toEqual({ userId: user.id })
+    expect(result.userId).toEqual(user.id)
+    expect(result.session.token).toBeTruthy()
+    expect(result.session.userId).toBe(user.id)
 
     expect(emitted.some((e) => e.name === 'auth:password-set')).toBe(true)
     const success = emitted.find((e) => e.name === 'auth:login-succeeded')
@@ -215,7 +217,7 @@ describe('AuthenticationModule', () => {
     await auth.changePassword(user.id, PASSWORD, 'NuevaClave456!')
 
     await expect(auth.login('rotating', PASSWORD)).rejects.toThrow(InvalidCredentialsError)
-    await expect(auth.login('rotating', 'NuevaClave456!')).resolves.toEqual({ userId: user.id })
+    await expect(auth.login('rotating', 'NuevaClave456!')).resolves.toMatchObject({ userId: user.id })
     expect(emitted.some((e) => e.name === 'auth:password-changed')).toBe(true)
   })
 
@@ -251,7 +253,7 @@ describe('AuthenticationModule', () => {
     })
     await second.init(context)
 
-    await expect(second.login('durable01', PASSWORD)).resolves.toEqual({ userId: user.id })
+    await expect(second.login('durable01', PASSWORD)).resolves.toMatchObject({ userId: user.id })
 
     // El almacén solo contiene el hash auto-descriptivo
     const records = await persistence.repository<{ id: string; passwordHash: string }>('auth:credentials').list()

@@ -1,5 +1,6 @@
 // authentication/events.ts
 import type { LoginRelevantAccountStatus } from './UserDirectoryPort.js'
+import type { SessionRevokedReason } from './domain/SessionRecord.js'
 
 export const AUTH_EVENTS = {
   PASSWORD_SET: 'auth:password-set',
@@ -7,6 +8,9 @@ export const AUTH_EVENTS = {
   LOGIN_SUCCEEDED: 'auth:login-succeeded',
   LOGIN_FAILED: 'auth:login-failed',
   ACCOUNT_LOCKED: 'auth:account-locked',
+  SESSION_ISSUED: 'auth:session-issued',
+  SESSION_REVOKED: 'auth:session-revoked',
+  SESSIONS_INVALIDATED: 'auth:sessions-invalidated',
 } as const
 
 export type LoginFailedReason =
@@ -37,4 +41,22 @@ export interface LoginFailedPayload {
 export interface AccountLockedPayload {
   readonly userId: string
   readonly lockedUntil: number
+}
+
+export interface SessionIssuedPayload {
+  readonly userId: string
+  readonly sessionId: string
+  readonly deviceFingerprint: string
+  readonly expiresAt: number
+}
+
+export interface SessionRevokedPayload {
+  readonly sessionId: string
+  readonly userId?: string
+  readonly reason: SessionRevokedReason
+}
+
+export interface SessionsInvalidatedPayload {
+  readonly count: number
+  readonly reason: string
 }
