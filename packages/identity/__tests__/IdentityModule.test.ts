@@ -181,6 +181,13 @@ describe('IdentityModule', () => {
     expect(await identity.getByUsername('noexiste')).toBeNull()
   })
 
+  it('getByEmail resuelve case-insensitive vía índice', async () => {
+    await register('mailuser', { email: 'correo@test.dev' })
+
+    expect((await identity.getByEmail('  CORREO@TEST.DEV '))?.username).toBe('mailuser')
+    expect(await identity.getByEmail('otro@test.dev')).toBeNull()
+  })
+
   it('getUser devuelve null para id desconocido; listUsers devuelve todos', async () => {
     expect(await identity.getUser('ghost')).toBeNull()
 

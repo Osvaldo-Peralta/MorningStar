@@ -13,6 +13,7 @@ import {
 import { PhotoFeedModule } from '@morningstar/photo-feed'
 import { RuntimeLoggerModule } from '@morningstar/runtime-logger'
 import { IdentityModule } from '@morningstar/identity'
+import { AuthenticationModule, Pbkdf2PasswordHasher } from '@morningstar/authentication'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()
@@ -75,7 +76,37 @@ async function bootstrap() {
   const verificationEmail = emailDelivery.outbox.at(-1)!
   const token = verificationEmail.body.match(/token=([A-Za-z0-9_-]+)/)![1]
   const verifiedUser = await identity.confirmEmail(token)
-  console.log('User Verified: ', verifiedUser)
+  console.log('User Verified: ', verifiedUser.accountStatus)
+
+  // Authentication (Fase 4 / Iteración 6a): credenciales + login.
+  // La composición cablea el UserDirectoryPort con identity (ADR-0002/0007):
+  // authentication NO importa identity.
+  const authentication = new AuthenticationModule({
+    // Demo: iteraciones reducidas para un bootstrap rápido; en producción se
+    // usa el default OWASP (600k).
+    passwordHasher: new Pbkdf2PasswordHasher({ iterations: 100_000 }),
+    userDirectory: {
+      lookupUser: async (identifier) => {
+        const user =
+          (await identity.getByUsername(identifier)) ??
+          (await identity.getByEmail(identifier))
+        return user ? { userId: user.id, accountStatus: user.accountStatus } : null
+      },
+    },
+  })
+  registry.register(authentication)
+  await registry.init(authentication.id)
+  await registry.activate(authentication.id)
+
+  await authentication.setPassword(verifiedUser.id, 'SecurePass123!')
+  const loginOk = await authentication.login('osvaldodev', 'SecurePass123!')
+  console.log('Login OK: ', loginOk)
+
+  try {
+    await authentication.login('osvaldo@morningstar.dev', 'wrong-password')
+  } catch (err) {
+    console.log('Login rechazado (esperado): ', (err as Error).name)
+  }
 
   await photoFeed.addPhoto('https://example.com/photo1.jpg')
   await photoFeed.addPhoto('https://example.com/photo2.jpg')

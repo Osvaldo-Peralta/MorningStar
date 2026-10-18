@@ -12,6 +12,7 @@
     { "path": "./packages/photo-feed" },
     { "path": "./packages/runtime-logger" },
     { "path": "./packages/persistence-node" },
-    { "path": "./packages/identity" }
+    { "path": "./packages/identity" },
+    { "path": "./packages/authentication" }
   ]
 }

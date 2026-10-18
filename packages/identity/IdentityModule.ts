@@ -13,7 +13,7 @@ import type {
 } from './domain/EmailVerificationTokenRecord.js'
 import { validateUsername, normalizeUsername } from './domain/usernamePolicy.js'
 import { validateDisplayName } from './domain/displayNamePolicy.js'
-import { validateEmail } from './domain/emailPolicy.js'
+import { validateEmail, normalizeEmail } from './domain/emailPolicy.js'
 import { generateTokenValue, hashToken } from './domain/tokenUtils.js'
 import {
   EmailAlreadyRegisteredError,
@@ -368,6 +368,14 @@ export class IdentityModule implements AppModule {
   async getByUsername(username: string): Promise<UserSnapshot | null> {
     if (!this.users || !this.usernameIndex) throw new Error('Not Initialized')
     const indexEntry = await this.usernameIndex.get(normalizeUsername(username))
+    if (!indexEntry) return null
+    return this.getUser(indexEntry.userId)
+  }
+
+  /** Búsqueda case-insensitive de email: normaliza y resuelve vía índice (ADR-0006). */
+  async getByEmail(email: string): Promise<UserSnapshot | null> {
+    if (!this.users || !this.emailIndex) throw new Error('Not Initialized')
+    const indexEntry = await this.emailIndex.get(normalizeEmail(email))
     if (!indexEntry) return null
     return this.getUser(indexEntry.userId)
   }

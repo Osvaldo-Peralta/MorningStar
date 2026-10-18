@@ -48,6 +48,7 @@ packages/
                         # y adaptadores + utilidades de test (core/testing)
   photo-feed/           # Módulo de dominio: fotos (agregar, editar, eliminar)
   identity/             # Módulo de dominio: usuarios, estados y tipos de cuenta (Fase 3)
+  authentication/       # Módulo de dominio: credenciales, hashing y login (Fase 4)
   runtime-logger/       # Módulo pasivo de logging basado en eventos
   persistence-node/     # Adaptadores de persistencia y medios para Node
 apps/

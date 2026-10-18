@@ -30,6 +30,7 @@ export class IdentityModule implements AppModule {
   confirmEmail(token: string): Promise<UserSnapshot>
   getUser(userId: string): Promise<UserSnapshot | null>
   getByUsername(username: string): Promise<UserSnapshot | null>   // case-insensitive
+  getByEmail(email: string): Promise<UserSnapshot | null>         // case-insensitive (ADR-0006)
   listUsers(): Promise<UserSnapshot[]>
 }
 ```
@@ -47,7 +48,7 @@ export class IdentityModule implements AppModule {
 | `changeAccountType(userId, to)` | usuario existe; conversión permitida | Convierte, persiste y emite `identity:type-changed` | `UserNotFoundError`, `InvalidAccountTypeConversionError` |
 | `requestEmailVerification(userId)` | usuario existe; `context.email` presente | Invalida tokens activos anteriores → genera token (256-bit, TTL 24 h) → persiste **solo su hash** → envía email con enlace → emite `identity:verification-requested` | `UserNotFoundError`, `Error("...requiere 'context.email'...")` |
 | `confirmEmail(token)` | token válido, no consumido, no invalidado, no expirado | Consume el token (single-use) → `emailVerified: true` → **solo** `PENDING_VERIFICATION → ACTIVE` → emite `identity:status-changed` (si aplicó) y `identity:email-verified` | `InvalidVerificationTokenError`, `TokenAlreadyUsedError`, `TokenInvalidatedError`, `TokenExpiredError` |
-| `getUser` / `getByUsername` / `listUsers` | módulo inicializado | Consultas de solo lectura; `null` cuando no existe | `Error('Not Initialized')` |
+| `getUser` / `getByUsername` / `getByEmail` / `listUsers` | módulo inicializado | Consultas de solo lectura; `null` cuando no existe. `getByUsername`/`getByEmail` resuelven case-insensitive vía índices | `Error('Not Initialized')` |
 
 Orden de operaciones en cada comando: validación de dominio → persistencia →
 evento. Los comandos devuelven el `UserSnapshot` resultante.

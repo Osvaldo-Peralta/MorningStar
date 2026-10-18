@@ -15,6 +15,7 @@ export default defineConfig({
       '@morningstar/runtime-logger': path.resolve(__dirname, 'packages/runtime-logger'),
       '@morningstar/persistence-node': path.resolve(__dirname, 'packages/persistence-node'),
       '@morningstar/identity': path.resolve(__dirname, 'packages/identity'),
+      '@morningstar/authentication': path.resolve(__dirname, 'packages/authentication'),
     },
   },
 })

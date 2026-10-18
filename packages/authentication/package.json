@@ -1,0 +1,17 @@
+{
+  "name": "@morningstar/authentication",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Módulo de autenticación: credenciales, hashing de contraseñas y login (Baseline v1.0 §2, Fase 4). Las sesiones/refresh/MFA llegan en iteraciones posteriores.",
+  "main": "./dist/index.js",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@morningstar/core": "*"
+  }
+}
