@@ -11,6 +11,7 @@ aquí (ni en el `index.ts` del paquete), es interno y puede cambiar sin aviso.
 | `@morningstar/core` | [core.md](./core.md) | `module:` | **Stable** |
 | `@morningstar/photo-feed` | [photo-feed.md](./photo-feed.md) | `photo:` | Stable (MVP) |
 | `@morningstar/runtime-logger` | [runtime-logger.md](./runtime-logger.md) | — (consumidor `*`) | Stable (MVP) |
+| `@morningstar/identity` | [identity.md](./identity.md) | `identity:` | Experimental |
 | `@morningstar/persistence-node` | [README del paquete](../../packages/persistence-node/README.md) | — (infraestructura) | Experimental |
 
 Plantilla para módulos nuevos: [TEMPLATE.md](./TEMPLATE.md)
@@ -23,7 +24,7 @@ Un prefijo pertenece a un único módulo (ADR-0001). Reservados:
 |---|---|---|
 | `module:` | core | en uso |
 | `photo:` | photo-feed | en uso |
-| `identity:` | Identity (Fase 3) | reservado |
+| `identity:` | identity | en uso |
 | `auth:` | Authentication (Fase 4) | reservado |
 | `media:` | Media Storage (Fase 2) | reservado |
 | `audit:` | Audit Trail (Fase 8) | reservado |

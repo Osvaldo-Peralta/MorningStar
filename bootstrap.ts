@@ -11,6 +11,7 @@ import {
 } from '@morningstar/core'
 import { PhotoFeedModule } from '@morningstar/photo-feed'
 import { RuntimeLoggerModule } from '@morningstar/runtime-logger'
+import { AccountStatus, IdentityModule } from '@morningstar/identity'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()
@@ -51,6 +52,21 @@ async function bootstrap() {
   registry.register(photoFeed)              // Emitira REGISTERED (photoFeed)
   await registry.init(photoFeed.id)
   await registry.activate(photoFeed.id)
+
+  // Identity (Fase 3): demo del ciclo de vida de cuenta
+  const identity = new IdentityModule()
+  registry.register(identity)
+  await registry.init(identity.id)
+  await registry.activate(identity.id)
+
+  const user = await identity.registerUser({
+    username: 'OsvaldoDev',
+    displayName: 'Osvaldo Peralta',
+  })
+  // Demo: en producción PENDING_VERIFICATION → ACTIVE ocurre vía confirmEmail
+  // (Iteración 5); aquí se usa el comando de sistema para mostrar el ciclo.
+  await identity.changeStatus(user.id, AccountStatus.Active, 'bootstrap demo')
+  console.log('User Registered: ', await identity.getUser(user.id))
 
   await photoFeed.addPhoto('https://example.com/photo1.jpg')
   await photoFeed.addPhoto('https://example.com/photo2.jpg')

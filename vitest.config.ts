@@ -13,6 +13,8 @@ export default defineConfig({
       '@morningstar/core': path.resolve(__dirname, 'packages/core'),
       '@morningstar/photo-feed': path.resolve(__dirname, 'packages/photo-feed'),
       '@morningstar/runtime-logger': path.resolve(__dirname, 'packages/runtime-logger'),
+      '@morningstar/persistence-node': path.resolve(__dirname, 'packages/persistence-node'),
+      '@morningstar/identity': path.resolve(__dirname, 'packages/identity'),
     },
   },
 })

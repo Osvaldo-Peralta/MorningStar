@@ -82,3 +82,25 @@ Cuando un cambio aditivo no alcanza:
 **Costos**
 - Duplicación temporal de emisores durante transiciones `:vN`.
 - Disciplina documental: todo cambio de evento exige actualizar su contrato.
+
+---
+
+## Enmienda (Octubre 2026) — Alineación con Baseline v1.0 §6
+
+La Baseline v1.0 §6 (frozen) prescribe sufijos de versión explícitos en el
+nombre (`_v1`, `_v2`). Este ADR mantiene la **versión en el envelope**
+(`DomainEvent.version?`, ausente = v1) con sufijo `:vN` solo al abrir un
+breaking change. Justificación:
+
+1. Sufijar los nombres existentes (`photo:added` → `photo:added_v1`) sería en
+   sí mismo un breaking change de todos los eventos actuales.
+2. Las reglas sustantivas de la Baseline §6 se preservan íntegramente:
+   *never modify existing payload* y *only extend* (= §3 evolución aditiva),
+   *consumers must tolerate unknown fields* (= forward compatibility de §3).
+3. El mecanismo `:vN` de §4 cumple la intención del sufijo explícito: la
+   versión aparece en el nombre exactamente cuando coexisten esquemas
+   incompatibles.
+
+Status: esta enmienda es la **decisión operativa** para el versionado de
+eventos; la Baseline §6 queda como referencia histórica hasta una eventual
+Baseline v1.1.

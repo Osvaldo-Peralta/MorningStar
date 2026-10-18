@@ -47,8 +47,9 @@ packages/
                         # puertos (Storage, Persistence, Permission, Logger)
                         # y adaptadores + utilidades de test (core/testing)
   photo-feed/           # Módulo de dominio: fotos (agregar, editar, eliminar)
+  identity/             # Módulo de dominio: usuarios, estados y tipos de cuenta (Fase 3)
   runtime-logger/       # Módulo pasivo de logging basado en eventos
-  persistence-node/     # Adaptador de persistencia durable para Node (archivos JSON)
+  persistence-node/     # Adaptadores de persistencia y medios para Node
 apps/
   web/                  # Frontend React + Vite + Tailwind
 bootstrap.ts            # Punto de entrada del backend (Node ESM)
