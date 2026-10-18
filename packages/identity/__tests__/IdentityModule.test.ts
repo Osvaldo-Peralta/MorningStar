@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
 import { IdentityModule } from '../IdentityModule.js'
 import { AccountType } from '../domain/AccountType.js'
 import {
@@ -8,10 +8,12 @@ import {
 import type { CoreContext, CoreEventMap, DomainEvent, Storage } from '@morningstar/core'
 import {
   UsernameAlreadyTakenError,
+  EmailAlreadyRegisteredError,
   UserNotFoundError,
   InvalidStatusTransitionError,
   InvalidAccountTypeConversionError,
   InvalidUsernameError,
+  InvalidEmailError,
 } from '../errors.js'
 
 const nullStorage: Storage = {
@@ -47,6 +49,15 @@ describe('IdentityModule', () => {
     await identity.init(context)
   })
 
+  /** Helper: registro con email derivado del username salvo override. */
+  const register = (username: string, extra?: { displayName?: string; email?: string; accountType?: AccountType }) =>
+    identity.registerUser({
+      username,
+      displayName: extra?.displayName ?? 'User',
+      email: extra?.email ?? `${username}@test.dev`,
+      accountType: extra?.accountType,
+    })
+
   it("init falla con error explícito si falta context.persistence", async () => {
     const module = new IdentityModule()
     const { persistence: _drop, ...withoutPersistence } = context
@@ -54,12 +65,13 @@ describe('IdentityModule', () => {
   })
 
   it('registerUser crea la cuenta en PENDING_VERIFICATION y emite identity:registered', async () => {
-    const snapshot = await identity.registerUser({
-      username: '  OsvaldoDev ',
+    const snapshot = await register('osvaldodev', {
       displayName: 'Osvaldo Peralta ✨',
+      email: '  Osvaldo@Test.Dev ',
     })
 
     expect(snapshot.username).toBe('osvaldodev') // normalizado
+    expect(snapshot.email).toBe('osvaldo@test.dev') // normalizado
     expect(snapshot.accountStatus).toBe('PENDING_VERIFICATION')
     expect(snapshot.accountType).toBe('PERSONAL')
     expect(snapshot.verificationFlags).toEqual({ emailVerified: false })
@@ -73,36 +85,43 @@ describe('IdentityModule', () => {
   })
 
   it('registerUser acepta accountType inicial válido', async () => {
-    const snapshot = await identity.registerUser({
-      username: 'creador1',
-      displayName: 'Creador',
-      accountType: AccountType.Creator,
-    })
+    const snapshot = await register('creador1', { accountType: AccountType.Creator })
     expect(snapshot.accountType).toBe('CREATOR')
   })
 
   it('username duplicado (case-insensitive) es rechazado', async () => {
-    await identity.registerUser({ username: 'uniqueuser', displayName: 'A' })
+    await register('uniqueuser')
 
-    await expect(
-      identity.registerUser({ username: 'UNIQUEUSER', displayName: 'B' })
-    ).rejects.toThrow(UsernameAlreadyTakenError)
-
-    // Y no persiste nada a medias
+    await expect(register('UNIQUEUSER', { email: 'otro@test.dev' })).rejects.toThrow(
+      UsernameAlreadyTakenError
+    )
     expect(await identity.listUsers()).toHaveLength(1)
   })
 
+  it('email duplicado (case-insensitive) es rechazado', async () => {
+    await register('user0001', { email: 'shared@test.dev' })
+
+    await expect(register('user0002', { email: '  SHARED@TEST.DEV ' })).rejects.toThrow(
+      EmailAlreadyRegisteredError
+    )
+    expect(await identity.listUsers()).toHaveLength(1)
+  })
+
+  it('email inválido es rechazado sin efectos colaterales', async () => {
+    await expect(register('user0003', { email: 'no-es-un-email' })).rejects.toThrow(InvalidEmailError)
+    await expect(register('user0004', { email: 'sin@dominio' })).rejects.toThrow(InvalidEmailError)
+    expect(await identity.listUsers()).toHaveLength(0)
+  })
+
   it('username inválido es rechazado sin efectos colaterales', async () => {
-    await expect(
-      identity.registerUser({ username: 'con_guion', displayName: 'A' })
-    ).rejects.toThrow(InvalidUsernameError)
+    await expect(register('con_guion')).rejects.toThrow(InvalidUsernameError)
     expect(await identity.listUsers()).toHaveLength(0)
   })
 
   it('changeStatus transiciona según política, persiste y emite evento con from/to/reason', async () => {
-    const user = await identity.registerUser({ username: 'user01', displayName: 'User' })
+    const user = await register('user01')
 
-    const updated = await identity.changeStatus(user.id, 'ACTIVE', 'email confirmado (demo)')
+    const updated = await identity.changeStatus(user.id, 'ACTIVE', 'decisión de sistema (demo)')
     expect(updated.accountStatus).toBe('ACTIVE')
 
     const event = emitted.find((e) => e.name === 'identity:status-changed')
@@ -110,16 +129,15 @@ describe('IdentityModule', () => {
       userId: user.id,
       from: 'PENDING_VERIFICATION',
       to: 'ACTIVE',
-      reason: 'email confirmado (demo)',
+      reason: 'decisión de sistema (demo)',
     })
 
-    // Persistido: una "nueva sesión" ve el mismo estado
     const reloaded = await identity.getUser(user.id)
     expect(reloaded?.accountStatus).toBe('ACTIVE')
   })
 
   it('changeStatus rechaza transiciones inválidas y no muta el estado', async () => {
-    const user = await identity.registerUser({ username: 'user02', displayName: 'User' })
+    const user = await register('user02')
     await identity.changeStatus(user.id, 'BANNED')
 
     await expect(identity.changeStatus(user.id, 'ACTIVE')).rejects.toThrow(InvalidStatusTransitionError)
@@ -133,7 +151,7 @@ describe('IdentityModule', () => {
   })
 
   it('updateDisplayName persiste y emite identity:profile-updated', async () => {
-    const user = await identity.registerUser({ username: 'user03', displayName: 'Antes' })
+    const user = await register('user03', { displayName: 'Antes' })
 
     const updated = await identity.updateDisplayName(user.id, '  Después  ')
     expect(updated.displayName).toBe('Después')
@@ -143,7 +161,7 @@ describe('IdentityModule', () => {
   })
 
   it('changeAccountType aplica la política de conversión y emite identity:type-changed', async () => {
-    const user = await identity.registerUser({ username: 'user04', displayName: 'User' })
+    const user = await register('user04')
 
     const updated = await identity.changeAccountType(user.id, AccountType.Creator)
     expect(updated.accountType).toBe('CREATOR')
@@ -157,7 +175,7 @@ describe('IdentityModule', () => {
   })
 
   it('getByUsername resuelve case-insensitive vía índice', async () => {
-    await identity.registerUser({ username: 'finder', displayName: 'Findable' })
+    await register('finder', { displayName: 'Findable' })
 
     expect((await identity.getByUsername('FINDER'))?.username).toBe('finder')
     expect(await identity.getByUsername('noexiste')).toBeNull()
@@ -166,23 +184,23 @@ describe('IdentityModule', () => {
   it('getUser devuelve null para id desconocido; listUsers devuelve todos', async () => {
     expect(await identity.getUser('ghost')).toBeNull()
 
-    await identity.registerUser({ username: 'uno001', displayName: 'Uno' })
-    await identity.registerUser({ username: 'dos002', displayName: 'Dos' })
+    await register('uno001', { displayName: 'Uno' })
+    await register('dos002', { displayName: 'Dos' })
 
     const all = await identity.listUsers()
     expect(all).toHaveLength(2)
     expect(all.map((u) => u.username).sort()).toEqual(['dos002', 'uno001'])
   })
 
-  it('el snapshot no expone el agregado (datos planos de solo lectura)', async () => {
-    const snapshot = await identity.registerUser({ username: 'plainobj', displayName: 'Plain' })
+  it('el snapshot es un objeto plano serializable (no expone el agregado)', async () => {
+    const snapshot = await register('plainobj')
 
-    expect(Object.isFrozen(snapshot)).toBe(false) // plain object
     expect(JSON.parse(JSON.stringify(snapshot))).toEqual(snapshot)
+    expect(snapshot.email).toBe('plainobj@test.dev')
   })
 
   it('los datos sobreviven a una reinicialización (identidad estable)', async () => {
-    const user = await identity.registerUser({ username: 'durable1', displayName: 'Durable' })
+    const user = await register('durable1', { displayName: 'Durable' })
     await identity.changeStatus(user.id, 'ACTIVE')
     await identity.dispose()
 
@@ -191,6 +209,7 @@ describe('IdentityModule', () => {
 
     const reloaded = await second.getByUsername('durable1')
     expect(reloaded?.id).toBe(user.id)
+    expect(reloaded?.email).toBe(user.email)
     expect(reloaded?.accountStatus).toBe('ACTIVE')
     expect(reloaded?.createdAt).toBe(user.createdAt)
   })

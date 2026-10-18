@@ -7,6 +7,7 @@ const createUser = (overrides?: Partial<{ displayName: string; accountType: Acco
   User.create({
     id: 'u1',
     username: 'osvaldo42',
+    email: 'osvaldo@test.dev',
     displayName: overrides?.displayName ?? 'Osvaldo Peralta',
     accountType: overrides?.accountType,
   })
@@ -76,6 +77,7 @@ describe('User (agregado)', () => {
 
     expect(restored.id).toBe(user.id)
     expect(restored.username).toBe(user.username)
+    expect(restored.email).toBe(user.email)
     expect(restored.displayName).toBe(user.displayName)
     expect(restored.accountType).toBe(user.accountType)
     expect(restored.accountStatus).toBe(user.accountStatus)

@@ -1,9 +1,11 @@
 // identity/IdentityEventMap.ts
 import type {
   AccountTypeChangedPayload,
+  EmailVerifiedPayload,
   ProfileUpdatedPayload,
   StatusChangedPayload,
   UserRegisteredPayload,
+  VerificationRequestedPayload,
 } from './events.js'
 
 /** Mapa de eventos del módulo Identity (contrato público). */
@@ -12,6 +14,8 @@ export interface IdentityEventMap {
   'identity:status-changed': StatusChangedPayload
   'identity:profile-updated': ProfileUpdatedPayload
   'identity:type-changed': AccountTypeChangedPayload
+  'identity:verification-requested': VerificationRequestedPayload
+  'identity:email-verified': EmailVerifiedPayload
 }
 
 /**
@@ -24,5 +28,7 @@ declare module '@morningstar/core' {
     'identity:status-changed': StatusChangedPayload
     'identity:profile-updated': ProfileUpdatedPayload
     'identity:type-changed': AccountTypeChangedPayload
+    'identity:verification-requested': VerificationRequestedPayload
+    'identity:email-verified': EmailVerifiedPayload
   }
 }

@@ -186,6 +186,7 @@ export interface CoreContext<
   readonly storage: Storage
   readonly persistence?: PersistenceProvider  // ADR-0003 (miembro opcional)
   readonly media?: MediaStorage               // ADR-0004 (miembro opcional)
+  readonly email?: EmailDelivery              // ADR-0006 (miembro opcional)
   readonly permission: Permissions
   readonly logger: Logger
   readonly config: CoreConfig
@@ -339,6 +340,41 @@ Adaptadores:
 | `IndexedDbMediaStorage` | core | `blob:` (cacheada; `dispose()` revoca) | navegador |
 | `FileMediaStorage` | `@morningstar/persistence-node` | `file://` | Node dev |
 | Remoto (object storage) | por decidir (Fase 3+) | `http(s)` | producción |
+
+### 3.7 Puerto `EmailDelivery` (ADR-0006)
+
+Capacidad abstracta de envío de email (verificación de cuenta en identity;
+reset de contraseña en authentication, Fase 4).
+
+```ts
+export interface EmailMessage {
+  readonly to: string
+  readonly subject: string
+  readonly body: string
+}
+
+export interface DeliveryResult {
+  readonly messageId: string
+  readonly deliveredAt: number
+}
+
+export interface EmailDelivery {
+  send(message: EmailMessage): Promise<DeliveryResult>
+}
+```
+
+Reglas del contrato:
+- `CoreContext.email` es **opcional**: los flujos que envían correo declaran
+  el requisito en su contrato y fallan con error explícito si falta.
+- El dominio compone el mensaje completo (destino, asunto, cuerpo); el
+  adaptador solo entrega.
+
+Adaptadores:
+
+| Adaptador | Paquete | Comportamiento |
+|---|---|---|
+| `InMemoryEmailDelivery` | core | acumula en `outbox` inspeccionable (dev/tests/bootstrap); `clear()` lo vacía |
+| Proveedor real (SMTP/SES/…) | por decidir (backend, Fase 3+) | producción |
 
 ## 4. Utilidades de test — `@morningstar/core/testing`
 

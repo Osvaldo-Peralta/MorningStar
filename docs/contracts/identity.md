@@ -1,14 +1,14 @@
 # Contrato — `@morningstar/identity`
 
-- Estabilidad: **Experimental** (promoverá a Stable al cerrar la Fase 3 con la
-  verificación por email, Iteración 5)
+- Estabilidad: **Stable** (Fase 3 cerrada — promovido desde Experimental)
 - Versión del paquete: 0.1.0
 - Dueño de prefijos de eventos: `identity:`
 - Dependencias: `@morningstar/core` (única — ADR-0002), `nanoid`
 
 Gestiona la identidad de usuario como dominio independiente de authentication
-y authorization (Baseline v1.0 §1, Fase 3 del roadmap). Decisiones de diseño
-en ADR-0005.
+y authorization (Baseline v1.0 §1, Fase 3 del roadmap), incluyendo el ciclo de
+vida completo de verificación por email. Decisiones de diseño en ADR-0005
+(dominio) y ADR-0006 (verificación).
 
 ---
 
@@ -20,26 +20,33 @@ export class IdentityModule implements AppModule {
   readonly version: string
   state: ModuleState
 
+  constructor(options?: IdentityModuleOptions)   // { tokenTtlMs?: number } — default 24 h
+
   registerUser(input: RegisterUserInput): Promise<UserSnapshot>
   changeStatus(userId: string, to: AccountStatus, reason?: string): Promise<UserSnapshot>
   updateDisplayName(userId: string, displayName: string): Promise<UserSnapshot>
   changeAccountType(userId: string, to: AccountType): Promise<UserSnapshot>
+  requestEmailVerification(userId: string): Promise<void>
+  confirmEmail(token: string): Promise<UserSnapshot>
   getUser(userId: string): Promise<UserSnapshot | null>
   getByUsername(username: string): Promise<UserSnapshot | null>   // case-insensitive
   listUsers(): Promise<UserSnapshot[]>
 }
 ```
 
-**`init(context)` requiere `context.persistence`** (camino único, ADR-0003);
-si falta, lanza error explícito que el `ModuleRegistry` traduce a
-`module:error` + `ModuleLifecycleError`.
+**Requisitos de `init(context)`:**
+- `context.persistence` — obligatorio (camino único, ADR-0003).
+- `context.email` — requerido solo por `requestEmailVerification` (error
+  explícito al invocarlo si falta).
 
 | Método | Precondiciones | Comportamiento | Errores |
 |---|---|---|---|
-| `registerUser({username, displayName, accountType?})` | username y displayName válidos; username libre | Normaliza username → verifica unicidad (índice) → crea agregado en `PENDING_VERIFICATION` (default `PERSONAL`, `emailVerified: false`) → persiste usuario + índice → emite `identity:registered` | `InvalidUsernameError`, `InvalidDisplayNameError`, `UsernameAlreadyTakenError`, `Error('Not Initialized')` |
-| `changeStatus(userId, to, reason?)` | usuario existe; transición permitida por `StatusTransitionPolicy` | Transiciona, persiste y emite `identity:status-changed` con `{from, to, reason?}` | `UserNotFoundError`, `InvalidStatusTransitionError` |
+| `registerUser({username, email, displayName, accountType?})` | username, email y displayName válidos; username y email libres | Normaliza → verifica unicidad (índices) → crea agregado en `PENDING_VERIFICATION` (default `PERSONAL`, `emailVerified: false`) → persiste usuario + índices → emite `identity:registered` | `InvalidUsernameError`, `InvalidEmailError`, `InvalidDisplayNameError`, `UsernameAlreadyTakenError`, `EmailAlreadyRegisteredError`, `Error('Not Initialized')` |
+| `changeStatus(userId, to, reason?)` | usuario existe; transición permitida | Transiciona, persiste y emite `identity:status-changed` con `{from, to, reason?}` | `UserNotFoundError`, `InvalidStatusTransitionError` |
 | `updateDisplayName(userId, displayName)` | usuario existe; displayName válido | Actualiza, persiste y emite `identity:profile-updated` | `UserNotFoundError`, `InvalidDisplayNameError` |
 | `changeAccountType(userId, to)` | usuario existe; conversión permitida | Convierte, persiste y emite `identity:type-changed` | `UserNotFoundError`, `InvalidAccountTypeConversionError` |
+| `requestEmailVerification(userId)` | usuario existe; `context.email` presente | Invalida tokens activos anteriores → genera token (256-bit, TTL 24 h) → persiste **solo su hash** → envía email con enlace → emite `identity:verification-requested` | `UserNotFoundError`, `Error("...requiere 'context.email'...")` |
+| `confirmEmail(token)` | token válido, no consumido, no invalidado, no expirado | Consume el token (single-use) → `emailVerified: true` → **solo** `PENDING_VERIFICATION → ACTIVE` → emite `identity:status-changed` (si aplicó) y `identity:email-verified` | `InvalidVerificationTokenError`, `TokenAlreadyUsedError`, `TokenInvalidatedError`, `TokenExpiredError` |
 | `getUser` / `getByUsername` / `listUsers` | módulo inicializado | Consultas de solo lectura; `null` cuando no existe | `Error('Not Initialized')` |
 
 Orden de operaciones en cada comando: validación de dominio → persistencia →
@@ -53,6 +60,7 @@ evento. Los comandos devuelven el `UserSnapshot` resultante.
 export class User {
   readonly id: string
   get username(): string          // normalizado
+  get email(): string             // normalizado
   get displayName(): string
   get accountType(): AccountType
   get accountStatus(): AccountStatus
@@ -64,7 +72,7 @@ export class User {
   changeStatus(to): AccountStatus              // devuelve el estado anterior
   updateDisplayName(displayName): string       // devuelve el valor anterior
   changeAccountType(to): AccountType           // devuelve el tipo anterior
-  markEmailVerified(): void                    // reservado para Iteración 5
+  markEmailVerified(): void
   toRecord(): UserRecord
   static fromRecord(record: UserRecord): User
 }
@@ -89,9 +97,9 @@ export const AccountStatus = {
 
 | Desde | Hacia permitido | Notas (Baseline v1.0 §1) |
 |---|---|---|
-| `PENDING_VERIFICATION` | `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `BANNED` | → `ACTIVE` debe dispararlo `confirmEmail` (Iteración 5) |
+| `PENDING_VERIFICATION` | `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `BANNED` | → `ACTIVE` vía `confirmEmail` (regla: "VERIFIED occurs upon email confirmation") |
 | `ACTIVE` | `SUSPENDED`, `DEACTIVATED`, `BANNED` | — |
-| `SUSPENDED` | `ACTIVE`, `DEACTIVATED`, `BANNED` | → `ACTIVE` solo por comando explícito (admin); nunca automático ni por verificación de email |
+| `SUSPENDED` | `ACTIVE`, `DEACTIVATED`, `BANNED` | → `ACTIVE` solo por comando explícito (admin); **la verificación de email NUNCA reactiva** |
 | `DEACTIVATED` | `ACTIVE`, `BANNED` | → `ACTIVE` requerirá re-auth en Fase 4 |
 | `BANNED` | *(terminal)* | unban futuro exigiría ADR + Audit (ADR-0005) |
 
@@ -100,23 +108,27 @@ Transición al mismo estado: rechazada. Helpers públicos: `canTransition`,
 
 ### `AccountType` y política de conversión
 
-```ts
-export const AccountType = { Personal, Creator, Official, Government } as const
-```
+`PERSONAL ↔ CREATOR` permitido; hacia/desde `OFFICIAL`/`GOVERNMENT` bloqueado
+hasta definir su flujo de verificación. Cuenta nueva: `PERSONAL` por defecto.
 
-| Desde | Hacia permitido |
-|---|---|
-| `PERSONAL` | `CREATOR` |
-| `CREATOR` | `PERSONAL` |
-| `OFFICIAL` / `GOVERNMENT` | *(bloqueado hasta el flujo de verificación correspondiente)* |
+### Verificación de email (ADR-0006)
+
+- Token: 256 bits (`crypto.getRandomValues`, base64url); se persiste **solo el
+  hash SHA-256** como `id` del record (lookup O(1), el claro nunca se guarda).
+- TTL: 24 h por defecto (`EMAIL_VERIFICATION_TTL_MS`), inyectable vía
+  `IdentityModuleOptions.tokenTtlMs`.
+- Single active token: una nueva solicitud invalida los anteriores.
+- Single-use: el token se consume antes de los efectos de dominio.
+- Regla SUSPENDED: `confirmEmail` marca `emailVerified` pero **no** cambia el
+  estado de una cuenta suspendida (ni de ningún estado que no sea
+  `PENDING_VERIFICATION`).
 
 ### Políticas de perfil
 
-- **username**: trim + lowercase; alfanumérico estricto `[a-z0-9]`; 3–32
-  caracteres; unicidad global case-insensitive. (`USERNAME_LIMITS`,
-  `normalizeUsername`, `validateUsername`)
+- **username**: trim + lowercase; `[a-z0-9]`; 3–32; único case-insensitive.
+- **email**: trim + lowercase; `algo@algo.tld` (pragmático); máx 254; único
+  case-insensitive.
 - **displayName**: Unicode completo; 1–100 code points; trim.
-  (`DISPLAY_NAME_LIMITS`, `validateDisplayName`)
 
 ### Tipos de soporte
 
@@ -125,6 +137,7 @@ export interface VerificationFlags { readonly emailVerified: boolean }
 
 export interface UserRecord extends PersistedRecord {
   readonly username: string
+  readonly email: string
   readonly displayName: string
   readonly accountType: AccountType
   readonly accountStatus: AccountStatus
@@ -133,8 +146,17 @@ export interface UserRecord extends PersistedRecord {
   readonly updatedAt: number
 }
 
+export interface EmailVerificationTokenRecord extends PersistedRecord {
+  readonly userId: string
+  readonly email: string
+  readonly createdAt: number
+  readonly expiresAt: number
+  readonly consumedAt?: number
+  readonly invalidatedAt?: number
+}
+
 export interface UserSnapshot { /* mismos campos que UserRecord */ }
-export interface RegisterUserInput { username; displayName; accountType? }
+export interface RegisterUserInput { username; email; displayName; accountType? }
 ```
 
 ## 3. Eventos emitidos (ADR-0001, prefijo `identity:`)
@@ -143,10 +165,12 @@ Todos con `category: 'domain'`, `source: { moduleId: 'identity', entity: 'user',
 
 | Evento | Cuándo | Payload |
 |---|---|---|
-| `identity:registered` | tras crear usuario + índice | `{ userId, username, accountType, accountStatus }` |
-| `identity:status-changed` | tras transición válida | `{ userId, from, to, reason? }` |
+| `identity:registered` | tras crear usuario + índices | `{ userId, username, accountType, accountStatus }` |
+| `identity:status-changed` | tras transición válida (incluida la de `confirmEmail`) | `{ userId, from, to, reason? }` |
 | `identity:profile-updated` | tras actualizar displayName | `{ userId, displayName }` |
 | `identity:type-changed` | tras conversión de tipo válida | `{ userId, from, to }` |
+| `identity:verification-requested` | tras generar token y enviar email | `{ userId, email, expiresAt }` |
+| `identity:email-verified` | tras confirmación exitosa | `{ userId, email }` |
 
 El módulo registra estos eventos en `CoreEventMap` por *module augmentation*
 (`IdentityEventMap.ts`, exportado desde el índice público).
@@ -157,24 +181,28 @@ El módulo registra estos eventos en `CoreEventMap` por *module augmentation*
 |---|---|---|
 | `identity:users` | `UserRecord` | agregados de usuario |
 | `identity:usernames` | `{ id: usernameNormalizado, userId }` | índice de unicidad O(1) |
+| `identity:emails` | `{ id: emailNormalizado, userId }` | índice de unicidad O(1) |
+| `identity:email-tokens` | `EmailVerificationTokenRecord` (`id` = SHA-256 del token) | tokens de verificación |
 
-Escritura de registro: primero el usuario, después el índice (un fallo entre
-ambos deja un usuario sin índice — recuperable por reconstrucción; el orden
-inverso dejaría un índice colgado, peor). Identidad estable entre sesiones
-(hereda las garantías del puerto Persistence).
+Orden de escritura en registro: usuario → índices (fallo intermedio = dato
+sin índice, recuperable; nunca índice colgado). Identidad estable entre
+sesiones (garantías del puerto Persistence).
 
 ## 5. Permisos y configuración
 
 - No solicita permisos del puerto `Permissions`.
-- No lee claves de `CoreConfig`.
+- No lee claves de `CoreConfig`. `IdentityModuleOptions.tokenTtlMs` es la
+  única configuración del módulo.
 
 ## 6. Deuda conocida
 
-- **Verificación por email** (tokens single-use con expiración e invalidación
-  de anteriores, `confirmEmail` → `ACTIVE`): Iteración 5. `markEmailVerified`
-  ya está reservado en el agregado.
 - **Re-auth para cambios sensibles** (Baseline): llegará con Authentication
   (Fase 4); los comandos sensibles incorporarán entonces el contexto de actor.
 - Conversiones a `OFFICIAL`/`GOVERNMENT` bloqueadas hasta definir su flujo de
   verificación.
 - `BANNED` terminal: el unban se definirá por ADR junto al Audit Trail (Fase 8).
+- Sin rate-limiting en `requestEmailVerification` (vector de spam) — se
+  abordará con Risk Engine / Authentication (ADR-0006).
+- Sin GC de tokens expirados/consumidos; búsqueda de tokens por usuario con
+  `list()` + filtro (índice secundario cuando haya volúmenes reales).
+- `VERIFICATION_LINK_BASE` es placeholder hasta que exista la app pública.

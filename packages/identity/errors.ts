@@ -23,6 +23,13 @@ export class InvalidDisplayNameError extends IdentityError {
   }
 }
 
+export class InvalidEmailError extends IdentityError {
+  constructor(reason: string) {
+    super(`Invalid email: ${reason}`)
+    this.name = 'InvalidEmailError'
+  }
+}
+
 export class UsernameAlreadyTakenError extends IdentityError {
   readonly username: string
 
@@ -30,6 +37,16 @@ export class UsernameAlreadyTakenError extends IdentityError {
     super(`Username '${username}' is already taken`)
     this.name = 'UsernameAlreadyTakenError'
     this.username = username
+  }
+}
+
+export class EmailAlreadyRegisteredError extends IdentityError {
+  readonly email: string
+
+  constructor(email: string) {
+    super(`Email '${email}' is already registered`)
+    this.name = 'EmailAlreadyRegisteredError'
+    this.email = email
   }
 }
 
@@ -64,5 +81,41 @@ export class InvalidAccountTypeConversionError extends IdentityError {
     this.name = 'InvalidAccountTypeConversionError'
     this.from = from
     this.to = to
+  }
+}
+
+/** Base de los errores del flujo de verificación de email (ADR-0006). */
+export class EmailVerificationError extends IdentityError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'EmailVerificationError'
+  }
+}
+
+export class InvalidVerificationTokenError extends EmailVerificationError {
+  constructor() {
+    super('Verification token is invalid')
+    this.name = 'InvalidVerificationTokenError'
+  }
+}
+
+export class TokenAlreadyUsedError extends EmailVerificationError {
+  constructor() {
+    super('Verification token was already used (single-use)')
+    this.name = 'TokenAlreadyUsedError'
+  }
+}
+
+export class TokenInvalidatedError extends EmailVerificationError {
+  constructor() {
+    super('Verification token was invalidated by a newer request')
+    this.name = 'TokenInvalidatedError'
+  }
+}
+
+export class TokenExpiredError extends EmailVerificationError {
+  constructor() {
+    super('Verification token has expired')
+    this.name = 'TokenExpiredError'
   }
 }

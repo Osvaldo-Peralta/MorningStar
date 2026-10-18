@@ -4,6 +4,7 @@
 // nunca rutas internas: `@morningstar/*`.
 import type { CoreContext, CoreEventMap } from '@morningstar/core'
 import {
+  InMemoryEmailDelivery,
   InMemoryEventBus,
   InMemoryPersistenceAdapter,
   InMemoryStorageAdapter,
@@ -11,7 +12,7 @@ import {
 } from '@morningstar/core'
 import { PhotoFeedModule } from '@morningstar/photo-feed'
 import { RuntimeLoggerModule } from '@morningstar/runtime-logger'
-import { AccountStatus, IdentityModule } from '@morningstar/identity'
+import { IdentityModule } from '@morningstar/identity'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()
@@ -19,6 +20,7 @@ async function bootstrap() {
   // Cuando llegue la Fase 1 (persistencia remota) se sustituirá
   // por el adaptador correspondiente sin tocar el dominio.
   const storage = new InMemoryStorageAdapter('v0.3.0_')
+  const emailDelivery = new InMemoryEmailDelivery()
 
   const context: CoreContext<CoreEventMap> = {
     events: eventBus,
@@ -26,6 +28,8 @@ async function bootstrap() {
     // Persistencia con identidad estable (ADR-0003). En el backend de
     // producción será el adaptador remoto; aquí, volátil para la demo.
     persistence: new InMemoryPersistenceAdapter(),
+    // Entrega de emails: en dev/test el outbox es inspeccionable (ADR-0006)
+    email: emailDelivery,
     permission: {
       has: (permission) => true,
       request: async (permission) => true
@@ -53,7 +57,7 @@ async function bootstrap() {
   await registry.init(photoFeed.id)
   await registry.activate(photoFeed.id)
 
-  // Identity (Fase 3): demo del ciclo de vida de cuenta
+  // Identity (Fase 3): ciclo completo registro → verificación → ACTIVE
   const identity = new IdentityModule()
   registry.register(identity)
   await registry.init(identity.id)
@@ -61,12 +65,17 @@ async function bootstrap() {
 
   const user = await identity.registerUser({
     username: 'OsvaldoDev',
+    email: 'osvaldo@morningstar.dev',
     displayName: 'Osvaldo Peralta',
   })
-  // Demo: en producción PENDING_VERIFICATION → ACTIVE ocurre vía confirmEmail
-  // (Iteración 5); aquí se usa el comando de sistema para mostrar el ciclo.
-  await identity.changeStatus(user.id, AccountStatus.Active, 'bootstrap demo')
-  console.log('User Registered: ', await identity.getUser(user.id))
+  await identity.requestEmailVerification(user.id)
+
+  // Dev/demo: extraemos el token del outbox del adaptador InMemory
+  // (un usuario real lo recibiría por email y abriría el enlace)
+  const verificationEmail = emailDelivery.outbox.at(-1)!
+  const token = verificationEmail.body.match(/token=([A-Za-z0-9_-]+)/)![1]
+  const verifiedUser = await identity.confirmEmail(token)
+  console.log('User Verified: ', verifiedUser)
 
   await photoFeed.addPhoto('https://example.com/photo1.jpg')
   await photoFeed.addPhoto('https://example.com/photo2.jpg')

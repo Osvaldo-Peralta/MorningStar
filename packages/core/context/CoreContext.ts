@@ -7,6 +7,7 @@ import type { CoreConfig } from "./Config.js"
 import type { CoreEventMap } from "./CoreEventMap.js"
 import type { PersistenceProvider } from "./Persistence.js"
 import type { MediaStorage } from "./MediaStorage.js"
+import type { EmailDelivery } from "./EmailDelivery.js"
 
 // core/context/CoreContext.ts
 export interface CoreContext<
@@ -27,6 +28,12 @@ export interface CoreContext<
    * `PhotoFeedModule.addPhotoFromFile`).
    */
   readonly media?: MediaStorage
+  /**
+   * Entrega de emails (ADR-0006). Opcional: lo requieren los flujos que
+   * envían correo (verificación de email en identity; reset de contraseña
+   * en authentication, Fase 4).
+   */
+  readonly email?: EmailDelivery
   readonly permission: Permissions
   readonly logger: Logger
   readonly config: CoreConfig

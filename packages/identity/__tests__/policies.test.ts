@@ -5,7 +5,8 @@ import {
   USERNAME_LIMITS,
 } from '../domain/usernamePolicy.js'
 import { validateDisplayName, DISPLAY_NAME_LIMITS } from '../domain/displayNamePolicy.js'
-import { InvalidUsernameError, InvalidDisplayNameError } from '../errors.js'
+import { normalizeEmail, validateEmail, EMAIL_LIMITS } from '../domain/emailPolicy.js'
+import { InvalidUsernameError, InvalidDisplayNameError, InvalidEmailError } from '../errors.js'
 
 describe('usernamePolicy', () => {
   it('normaliza: trim + lowercase', () => {
@@ -49,5 +50,28 @@ describe('displayNamePolicy', () => {
   it('rechaza vacío o solo espacios', () => {
     expect(() => validateDisplayName('')).toThrow(/must not be empty/)
     expect(() => validateDisplayName('   ')).toThrow(InvalidDisplayNameError)
+  })
+})
+
+describe('emailPolicy', () => {
+  it('normaliza: trim + lowercase', () => {
+    expect(normalizeEmail('  Osvaldo@Test.DEV ')).toBe('osvaldo@test.dev')
+  })
+
+  it('acepta emails válidos y devuelve la forma normalizada', () => {
+    expect(validateEmail('usuario+tag@dominio.com')).toBe('usuario+tag@dominio.com')
+    expect(validateEmail('  A.B@c.d.io ')).toBe('a.b@c.d.io')
+  })
+
+  it('rechaza formatos inválidos', () => {
+    expect(() => validateEmail('sin-arroba.com')).toThrow(InvalidEmailError)
+    expect(() => validateEmail('sin@dominio')).toThrow(/not a valid email/)
+    expect(() => validateEmail('con espacios@dominio.com')).toThrow(InvalidEmailError)
+    expect(() => validateEmail('@dominio.com')).toThrow(InvalidEmailError)
+  })
+
+  it('rechaza emails más largos que el máximo', () => {
+    const long = `${'a'.repeat(EMAIL_LIMITS.maxLength)}@b.com`
+    expect(() => validateEmail(long)).toThrow(/too long/)
   })
 })

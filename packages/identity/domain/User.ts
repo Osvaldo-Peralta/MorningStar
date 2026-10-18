@@ -1,8 +1,7 @@
 // identity/domain/User.ts
 import type { AccountStatus } from './AccountStatus.js'
-import { AccountType } from './AccountType.js'
+import { AccountType, assertAccountTypeConversion } from './AccountType.js'
 import { assertTransition } from './StatusTransitionPolicy.js'
-import { assertAccountTypeConversion } from './AccountType.js'
 import { validateDisplayName } from './displayNamePolicy.js'
 import type { UserRecord, VerificationFlags } from './UserRecord.js'
 
@@ -10,6 +9,8 @@ export interface CreateUserInput {
   readonly id: string
   /** Debe venir ya validado y normalizado (validateUsername). */
   readonly username: string
+  /** Debe venir ya validado y normalizado (validateEmail). */
+  readonly email: string
   readonly displayName: string
   readonly accountType?: AccountType
 }
@@ -24,6 +25,7 @@ export interface CreateUserInput {
 export class User {
   readonly id: string
   #username: string
+  #email: string
   #displayName: string
   #accountType: AccountType
   #accountStatus: AccountStatus
@@ -34,6 +36,7 @@ export class User {
   private constructor(
     id: string,
     username: string,
+    email: string,
     displayName: string,
     accountType: AccountType,
     accountStatus: AccountStatus,
@@ -43,6 +46,7 @@ export class User {
   ) {
     this.id = id
     this.#username = username
+    this.#email = email
     this.#displayName = displayName
     this.#accountType = accountType
     this.#accountStatus = accountStatus
@@ -57,6 +61,7 @@ export class User {
     return new User(
       input.id,
       input.username,
+      input.email,
       validateDisplayName(input.displayName),
       input.accountType ?? AccountType.Personal,
       'PENDING_VERIFICATION',
@@ -68,6 +73,10 @@ export class User {
 
   get username(): string {
     return this.#username
+  }
+
+  get email(): string {
+    return this.#email
   }
 
   get displayName(): string {
@@ -106,7 +115,7 @@ export class User {
     return from
   }
 
-  /** Marca el email como verificado (lo usará confirmEmail, Iteración 5). */
+  /** Marca el email como verificado (Baseline: "VERIFIED occurs upon email confirmation"). */
   markEmailVerified(): void {
     this.#verificationFlags = { ...this.#verificationFlags, emailVerified: true }
     this.#updatedAt = Date.now()
@@ -133,6 +142,7 @@ export class User {
     return {
       id: this.id,
       username: this.#username,
+      email: this.#email,
       displayName: this.#displayName,
       accountType: this.#accountType,
       accountStatus: this.#accountStatus,
@@ -146,6 +156,7 @@ export class User {
     return new User(
       record.id,
       record.username,
+      record.email,
       record.displayName,
       record.accountType,
       record.accountStatus,

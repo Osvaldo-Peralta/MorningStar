@@ -11,7 +11,7 @@ aquí (ni en el `index.ts` del paquete), es interno y puede cambiar sin aviso.
 | `@morningstar/core` | [core.md](./core.md) | `module:` | **Stable** |
 | `@morningstar/photo-feed` | [photo-feed.md](./photo-feed.md) | `photo:` | Stable (MVP) |
 | `@morningstar/runtime-logger` | [runtime-logger.md](./runtime-logger.md) | — (consumidor `*`) | Stable (MVP) |
-| `@morningstar/identity` | [identity.md](./identity.md) | `identity:` | Experimental |
+| `@morningstar/identity` | [identity.md](./identity.md) | `identity:` | Stable |
 | `@morningstar/persistence-node` | [README del paquete](../../packages/persistence-node/README.md) | — (infraestructura) | Experimental |
 
 Plantilla para módulos nuevos: [TEMPLATE.md](./TEMPLATE.md)

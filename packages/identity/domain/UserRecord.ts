@@ -15,6 +15,8 @@ export interface VerificationFlags {
 export interface UserRecord extends PersistedRecord {
   /** Username normalizado (lowercase, alfanumérico) — único globalmente. */
   readonly username: string
+  /** Email normalizado (lowercase) — único globalmente (ADR-0006). */
+  readonly email: string
   readonly displayName: string
   readonly accountType: AccountType
   readonly accountStatus: AccountStatus
