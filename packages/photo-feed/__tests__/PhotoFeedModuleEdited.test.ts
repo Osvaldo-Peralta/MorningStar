@@ -1,5 +1,5 @@
 import { PhotoFeedModule } from "../PhotoFeedModule.js";
-import { CoreContext } from '@morningstar/core'
+import { CoreContext, InMemoryPersistenceAdapter } from '@morningstar/core'
 import { describe, it, expect, vitest } from "vitest";
 
 describe('PhotoFeedModule - photo:edited', () => {
@@ -12,10 +12,14 @@ describe('PhotoFeedModule - photo:edited', () => {
                 events: {
                     emit: (event: any) => emittedEvents.push(event),
                 },
-                // Añadimos el storage que faltaba
+                // Puerto de persistencia (Fase 1): camino único del módulo
+                persistence: new InMemoryPersistenceAdapter(),
+                // Storage completo según el puerto (la migración legacy usa remove)
                 storage: {
                     get: vitest.fn().mockResolvedValue([]),
-                    set: vitest.fn().mockResolvedValue(undefined)
+                    set: vitest.fn().mockResolvedValue(undefined),
+                    remove: vitest.fn().mockResolvedValue(undefined),
+                    exists: vitest.fn().mockResolvedValue(false)
                 }
             } as unknown as CoreContext
         };

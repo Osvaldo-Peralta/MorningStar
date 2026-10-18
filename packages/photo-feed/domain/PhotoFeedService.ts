@@ -16,6 +16,15 @@ export class PhotoFeedService {
     return photo
   }
 
+  /**
+   * Rehidrata un agregado existente desde persistencia (ADR-0003).
+   * A diferencia de `addPhoto`, NO genera identidad nueva: el agregado
+   * conserva su id y timestamps originales.
+   */
+  restore(photo: Photo): void {
+    this.photos.push(photo)
+  }
+
   editPhoto(
     photoId: string,
     input: EditPhotoInput

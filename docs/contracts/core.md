@@ -184,6 +184,7 @@ export interface CoreContext<
 > {
   readonly events: EventBus<TEventMap>
   readonly storage: Storage
+  readonly persistence?: PersistenceProvider  // ADR-0003 (miembro opcional)
   readonly permission: Permissions
   readonly logger: Logger
   readonly config: CoreConfig
@@ -253,6 +254,63 @@ export interface CoreConfig {
 }
 ```
 
+### 3.5 Puerto `Persistence` (ADR-0003)
+
+Persistencia de **registros con identidad estable** (a diferencia de `Storage`,
+que es clave-valor para configuración/flags).
+
+```ts
+export interface PersistedRecord { readonly id: string }
+
+export interface Repository<T extends PersistedRecord> {
+  get(id: string): Promise<T | null>      // null = no existe
+  save(record: T): Promise<T>             // upsert por id
+  remove(id: string): Promise<boolean>    // false = no existía
+  list(): Promise<T[]>
+}
+
+export interface PersistenceProvider {
+  repository<T extends PersistedRecord>(namespace: string): Repository<T>
+}
+```
+
+Reglas del contrato:
+- Se persisten *records* (datos planos JSON-serializables), **nunca agregados
+  de dominio**; cada módulo posee su mapeo (ej. `Photo.toRecord()`).
+- Namespaces con forma `<modulo>:<recurso>` (ej. `photo-feed:photos`).
+- Copias defensivas garantizadas: mutar la entrada de `save` o la salida de
+  `get` no corrompe el almacén.
+- `CoreContext.persistence` es **opcional**: los módulos que lo requieren lo
+  declaran en su contrato y fallan en `init` con error explícito.
+
+Adaptadores:
+
+| Adaptador | Paquete | Ámbito |
+|---|---|---|
+| `InMemoryPersistenceAdapter` | core | tests/bootstrap (volátil) |
+| `LocalStoragePersistenceAdapter` | core | desarrollo web (1 key JSON por namespace) |
+| `FilePersistenceAdapter` | `@morningstar/persistence-node` | desarrollo Node (1 archivo JSON por namespace, escritura atómica) |
+| Remoto (DB/object storage) | por decidir (Fase 3+) | producción multiusuario |
+
+Todo adaptador debe pasar los contract-tests compartidos (ver §4).
+
+## 4. Utilidades de test — `@morningstar/core/testing`
+
+Subpath export con utilidades reutilizables (no forman parte del runtime de
+producción):
+
+```ts
+import { defineRepositoryContractTests } from '@morningstar/core/testing'
+
+defineRepositoryContractTests('MiAdaptador', {
+  create: () => new MiAdaptador(/* almacén limpio */),
+  destroy: async (provider) => { /* limpiar recursos */ },
+})
+```
+
+La suite verifica la semántica completa del puerto `Repository` (roundtrip,
+upsert, remove, list, aislamiento por namespace, copias defensivas).
+
 ---
 
 ## Deuda conocida
@@ -262,3 +320,5 @@ export interface CoreConfig {
   agregará uno nuevo vía ADR.
 - `InMemoryEventBus` es síncrono y sin backpressure; para mensajería (Fase 6)
   se evaluará un adaptador distribuido detrás del mismo puerto.
+- El adaptador remoto de `Persistence` llegará con el backend multiusuario
+  (Fase 3+); el puerto ya está congelado (ADR-0003).

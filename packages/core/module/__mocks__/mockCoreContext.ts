@@ -1,5 +1,6 @@
 // core/module/__mocks__/mockCoreContext.ts
 import { InMemoryEventBus } from '../../context/InMemoryEventBus.js'
+import { InMemoryPersistenceAdapter } from '../../infraestructure/InMemoryPersistenceAdapter.js'
 import type { CoreContext } from '../../context/CoreContext.js'
 import type { Permissions } from '../../context/Permission.js'
 import type { Storage } from '../../context/Storage.js'
@@ -27,6 +28,7 @@ const mockLogger: Logger = {
 export const createMockCoreContext = (): CoreContext => ({
   events: new InMemoryEventBus(),
   storage: mockStorage,
+  persistence: new InMemoryPersistenceAdapter(),
   permission: mockPermissions,
   logger: mockLogger,
   config: {

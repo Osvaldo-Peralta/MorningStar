@@ -44,12 +44,17 @@ npm run clean           # Elimina todos los artefactos de compilación
 ```
 packages/
   core/                 # ModuleRegistry, lifecycle, EventBus, CoreContext,
-                        # puertos (Storage, Permission, Logger) y adaptadores
+                        # puertos (Storage, Persistence, Permission, Logger)
+                        # y adaptadores + utilidades de test (core/testing)
   photo-feed/           # Módulo de dominio: fotos (agregar, editar, eliminar)
   runtime-logger/       # Módulo pasivo de logging basado en eventos
+  persistence-node/     # Adaptador de persistencia durable para Node (archivos JSON)
 apps/
   web/                  # Frontend React + Vite + Tailwind
 bootstrap.ts            # Punto de entrada del backend (Node ESM)
+docs/
+  contracts/            # Contratos públicos por paquete
+  adr/                  # Decisiones de arquitectura (ADR-0001…)
 ```
 
 Cada paquete se compila de forma independiente (`composite` + Project

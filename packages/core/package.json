@@ -8,6 +8,10 @@
     ".": {
       "types": "./index.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./testing/index.ts",
+      "default": "./dist/testing/index.js"
     }
   }
 }

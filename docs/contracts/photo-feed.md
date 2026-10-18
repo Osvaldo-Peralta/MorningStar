@@ -33,6 +33,10 @@ export class PhotoFeedModule implements AppModule {
 | `removePhoto(id)` | módulo inicializado; la foto existe | Elimina, persiste y emite `photo:removed` | `Error('Not Initialized')`, `Error('Photo <id> not found')` |
 | `listEntries()` | módulo inicializado | Copia del array de agregados (no permite mutar la colección interna) | `Error('PhotoFeedModule not Initialized')` |
 
+**`init(context)` requiere `context.persistence`** (camino único, ADR-0003):
+si falta, lanza `Error("PhotoFeedModule requiere 'context.persistence' ...")`
+— que el `ModuleRegistry` traduce a `module:error` + `ModuleLifecycleError`.
+
 Orden de operaciones en cada comando: dominio → persistencia → evento.
 
 ## 2. Dominio
@@ -42,17 +46,22 @@ Orden de operaciones en cada comando: dominio → persistencia → evento.
 ```ts
 export class Photo {
   readonly id: string
-  readonly createdAt: number
   get url(): string
+  get createdAt(): number
   get updatedAt(): number
   edit(input: EditPhotoInput): PhotoChanges
+  toRecord(): PhotoRecord
+  static fromRecord(record: PhotoRecord): Photo
 }
 ```
 
-- Estado mutable con campos privados reales (`#url`, `#updatedAt`): no se
-  filtra en `JSON.stringify` / `console.log` / `structuredClone`.
+- Estado mutable con campos privados reales (`#url`, `#createdAt`,
+  `#updatedAt`): no se filtra en `JSON.stringify` / `console.log` /
+  `structuredClone`.
 - `edit()` devuelve solo los cambios efectivamente aplicados; no actualiza
   `updatedAt` si no hubo cambios.
+- `toRecord()`/`fromRecord()` son el mapeo dominio↔persistencia (ADR-0003):
+  la identidad (id, createdAt, updatedAt) sobrevive entre sesiones.
 
 ### Tipos de soporte
 
@@ -60,6 +69,12 @@ export class Photo {
 export type EditPhotoInput = { url?: string }
 export type FieldChange<T> = { before: T; after: T }
 export type PhotoChanges = { url?: FieldChange<string> }
+
+export interface PhotoRecord extends PersistedRecord {
+  readonly url: string
+  readonly createdAt: number
+  readonly updatedAt: number
+}
 ```
 
 ### `PhotoFeedService`
@@ -84,16 +99,22 @@ El módulo registra estos eventos en `CoreEventMap` por *module augmentation*
 
 ## 4. Persistencia
 
-| Clave | Contenido | Escritura |
-|---|---|---|
-| `photo-feed:data` | `string[]` (URLs) | en cada comando exitoso; hidratación en `init` |
+Puerto `Persistence` del core (ADR-0003), camino único desde la Fase 1:
 
-⚠️ **Limitación conocida (deuda de Fase 1/2):** la hidratación reconstruye los
-agregados desde las URLs, por lo que **los `id` y timestamps cambian entre
-sesiones**. Los consumidores no deben tratar `photoId` como estable entre
-reinicio y persistencia remota. Esto se resuelve cuando el puerto de
-persistencia multiusuario (Fase 1) y Media Storage (Fase 2) reemplacen el
-esquema actual de "solo URLs".
+| Namespace | Record | Escritura |
+|---|---|---|
+| `photo-feed:photos` | `PhotoRecord` (`{ id, url, createdAt, updatedAt }`) | en cada comando exitoso; hidratación en `init` |
+
+- **Identidad estable:** la hidratación reconstruye los agregados con
+  `Photo.fromRecord`, preservando `id`, `createdAt` y `updatedAt` entre
+  sesiones. Los `photoId` ya pueden referenciarse de forma durable (deuda
+  anterior resuelta).
+- **Migración legacy (una vez):** en `init`, si existe la clave
+  `photo-feed:data` del esquema anterior (`string[]` de URLs en `Storage`) y
+  el repositorio está vacío, se importa como records (los ids se regeneran por
+  última vez) y se descarta la clave legacy.
+- El módulo requiere `context.persistence`; `context.storage` solo se usa para
+  la migración legacy.
 
 ## 5. Permisos y configuración
 

@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "build": "tsc -b",
-    "clean": "rimraf dist packages/core/dist packages/photo-feed/dist packages/runtime-logger/dist apps/web/dist",
+    "clean": "rimraf dist packages/core/dist packages/photo-feed/dist packages/runtime-logger/dist packages/persistence-node/dist apps/web/dist",
     "bootstrap": "npm run build && node dist/bootstrap.js",
     "test": "vitest run",
     "dev": "vitest",

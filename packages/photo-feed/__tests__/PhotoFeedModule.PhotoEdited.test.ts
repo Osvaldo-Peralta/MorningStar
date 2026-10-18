@@ -1,4 +1,5 @@
 import { PhotoFeedModule } from "../PhotoFeedModule.js"
+import { InMemoryPersistenceAdapter } from '@morningstar/core'
 import { describe, it, expect, vitest } from "vitest"
 
 describe('PhotoFeedModule - Edición de Fotos', () => {
@@ -11,10 +12,14 @@ describe('PhotoFeedModule - Edición de Fotos', () => {
                 events: {
                     emit: (event: any) => emittedEvents.push(event),
                 },
-                // Mock del storage para evitar el error de 'undefined'
+                // Puerto de persistencia (Fase 1): camino único del módulo
+                persistence: new InMemoryPersistenceAdapter(),
+                // Storage completo según el puerto (la migración legacy usa remove)
                 storage: {
                     get: vitest.fn().mockResolvedValue([]),
-                    set: vitest.fn().mockResolvedValue(undefined)
+                    set: vitest.fn().mockResolvedValue(undefined),
+                    remove: vitest.fn().mockResolvedValue(undefined),
+                    exists: vitest.fn().mockResolvedValue(false)
                 }
             } as any
         };

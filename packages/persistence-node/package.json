@@ -1,0 +1,17 @@
+{
+  "name": "@morningstar/persistence-node",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Adaptadores de persistencia para Node (file-backed). Implementa el puerto PersistenceProvider de @morningstar/core.",
+  "main": "./dist/index.js",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@morningstar/core": "*"
+  }
+}

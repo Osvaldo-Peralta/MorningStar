@@ -5,6 +5,7 @@
 import type { CoreContext, CoreEventMap } from '@morningstar/core'
 import {
   InMemoryEventBus,
+  InMemoryPersistenceAdapter,
   InMemoryStorageAdapter,
   ModuleRegistry,
 } from '@morningstar/core'
@@ -21,6 +22,9 @@ async function bootstrap() {
   const context: CoreContext<CoreEventMap> = {
     events: eventBus,
     storage,                                        // Se inyecta el adaptador
+    // Persistencia con identidad estable (ADR-0003). En el backend de
+    // producción será el adaptador remoto; aquí, volátil para la demo.
+    persistence: new InMemoryPersistenceAdapter(),
     permission: {
       has: (permission) => true,
       request: async (permission) => true

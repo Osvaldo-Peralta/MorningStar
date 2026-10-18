@@ -6,6 +6,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { ModuleRegistry } from '@morningstar/core';
 import { InMemoryEventBus } from '@morningstar/core';
 import { LocalStorageAdapter } from '@morningstar/core';
+import { LocalStoragePersistenceAdapter } from '@morningstar/core';
 import { RuntimeLoggerModule } from '@morningstar/runtime-logger';
 import { PhotoFeedModule } from '@morningstar/photo-feed';
 import type { CoreEventMap } from '@morningstar/core';
@@ -25,10 +26,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       // 1. Configuración de Infraestructura
       const eventBus = new InMemoryEventBus<CoreEventMap>();
       const storage = new LocalStorageAdapter('morningstar_v0.2.0');
+      // Persistencia con identidad estable (ADR-0003). El prefijo del Storage
+      // KV se mantiene para que la migración legacy vea los datos existentes.
+      const persistence = new LocalStoragePersistenceAdapter('morningstar_v0.3.0_');
 
       const context = {
         events: eventBus,
         storage,
+        persistence,
         permission: { has: () => true, request: async () => true },
         logger: console,
         config: { environment: 'development' as const,
