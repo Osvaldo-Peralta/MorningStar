@@ -19,6 +19,7 @@ import {
   Pbkdf2PasswordHasher,
   TotpService,
 } from '@morningstar/authentication'
+import { AuthorizationModule } from '@morningstar/authorization'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()
@@ -162,6 +163,66 @@ async function bootstrap() {
       await authentication.logout(mfaLogin.session.token)
     }
   }
+
+  // Authorization (Fase 5): evaluación pura ALLOW/DENY/CONDITIONAL.
+  // La composición cablea los puertos con authentication e identity:
+  // authorization NO los importa (ADR-0002/0011).
+  const authorization = new AuthorizationModule({
+    sessionValidator: {
+      validateSession: async (token) => {
+        const session = await authentication.validateSession(token)
+        return session
+          ? {
+              userId: session.userId,
+              sessionId: session.sessionId,
+              deviceFingerprint: session.deviceFingerprint,
+              issuedAt: session.issuedAt,
+              expiresAt: session.expiresAt,
+              riskLevel: session.riskSnapshot.riskLevel,
+            }
+          : null
+      },
+    },
+    actorDirectory: {
+      getActor: async (userId) => {
+        const user = await identity.getUser(userId)
+        return user
+          ? {
+              accountStatus: user.accountStatus,
+              accountType: user.accountType,
+              verifiedAttributes: user.verificationFlags.emailVerified ? ['email'] : [],
+            }
+          : null
+      },
+    },
+  })
+  registry.register(authorization)
+  await registry.init(authorization.id)
+  await registry.activate(authorization.id)
+
+  // Sesión vigente para la demo (cuenta con MFA: completamos el segundo paso)
+  let sessionToken = ''
+  try {
+    await authentication.login('osvaldodev', 'SecurePass123!', { fingerprint: 'bootstrap-demo-device' })
+  } catch (err) {
+    if (err instanceof MfaRequiredError) {
+      const result = await authentication.completeMfaLogin(err.mfaToken, mfaActivation.backupCodes[1]!)
+      sessionToken = result.session.token
+    }
+  }
+
+  const ownPhoto = { permission: 'photo:delete', resource: { type: 'photo', id: 'p1', ownerId: verifiedUser.id } }
+  const foreignPhoto = { permission: 'photo:delete', resource: { type: 'photo', id: 'p2', ownerId: 'otro-usuario' } }
+
+  console.log('member  → borrar foto propia: ', (await authorization.authorize(ownPhoto, sessionToken)).decision)
+  console.log('member  → borrar foto ajena:  ', (await authorization.authorize(foreignPhoto, sessionToken)).decision)
+
+  await authorization.assignRoles(verifiedUser.id, ['member', 'moderator'])
+  console.log('moderator → borrar foto ajena:', (await authorization.authorize(foreignPhoto, sessionToken)).decision)
+
+  await authorization.assignRoles(verifiedUser.id, ['member', 'moderator', 'admin'])
+  const sensitive = await authorization.authorize({ permission: 'account:delete' }, sessionToken)
+  console.log('admin → account:delete:       ', sensitive.decision, sensitive.conditions ?? [])
 
   await photoFeed.addPhoto('https://example.com/photo1.jpg')
   await photoFeed.addPhoto('https://example.com/photo2.jpg')

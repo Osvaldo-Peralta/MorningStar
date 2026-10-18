@@ -13,6 +13,7 @@
     { "path": "./packages/runtime-logger" },
     { "path": "./packages/persistence-node" },
     { "path": "./packages/identity" },
-    { "path": "./packages/authentication" }
+    { "path": "./packages/authentication" },
+    { "path": "./packages/authorization" }
   ]
 }

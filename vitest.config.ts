@@ -16,6 +16,7 @@ export default defineConfig({
       '@morningstar/persistence-node': path.resolve(__dirname, 'packages/persistence-node'),
       '@morningstar/identity': path.resolve(__dirname, 'packages/identity'),
       '@morningstar/authentication': path.resolve(__dirname, 'packages/authentication'),
+      '@morningstar/authorization': path.resolve(__dirname, 'packages/authorization'),
     },
   },
 })

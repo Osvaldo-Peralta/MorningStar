@@ -1,0 +1,17 @@
+{
+  "name": "@morningstar/authorization",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Módulo de autorización: SecurityContext, roles/permisos y evaluación ALLOW/DENY/CONDITIONAL sin acceso a DB (Baseline v1.0 §3, Fase 5).",
+  "main": "./dist/index.js",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@morningstar/core": "*"
+  }
+}
