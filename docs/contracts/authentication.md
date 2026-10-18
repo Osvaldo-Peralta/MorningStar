@@ -1,8 +1,8 @@
 # Contrato — `@morningstar/authentication`
 
-- Estabilidad: **Experimental** (promoverá a Stable al cerrar la Fase 4 con
-  las Iteraciones 6b/6c)
-- Versión del paquete: 0.1.0
+- Estabilidad: **Stable** (Fase 4 cerrada con la Iteración 6d — promovido
+  desde Experimental)
+- Versión del paquete: 0.1.0 (módulo: 0.4.0)
 - Dueño de prefijos de eventos: `auth:`
 - Dependencias: `@morningstar/core` (única — ADR-0002); `identity` NO se
   importa: se integra vía `UserDirectoryPort` inyectado (ADR-0007)
@@ -31,6 +31,11 @@ export class AuthenticationModule implements AppModule {
   setPassword(userId: string, password: string): Promise<void>
   changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void>
   login(identifier: string, password: string, device?: DeviceInfo): Promise<LoginResult>
+  completeMfaLogin(mfaToken: string, code: string): Promise<LoginResult>
+  enrollMfa(userId: string): Promise<MfaEnrollment>
+  confirmMfa(userId: string, code: string): Promise<MfaActivation>
+  disableMfa(userId: string, code: string): Promise<void>
+  getMfaStatus(userId: string): Promise<MfaStatus>
   refresh(refreshToken: string): Promise<LoginResult>
   requestPasswordReset(identifier: string): Promise<void>
   resetPassword(token: string, newPassword: string): Promise<void>
@@ -58,7 +63,12 @@ export interface LoginResult {
 |---|---|---|---|
 | `setPassword` | password cumple política | Comando de sistema (alta inicial / reset admin): hashea y persiste credenciales; emite `auth:password-set` | `InvalidPasswordError`, `Error('Not Initialized')` |
 | `changePassword` | credenciales existen; `currentPassword` correcta; nueva cumple política | Rota el hash, resetea contadores, **revoca todas las sesiones** (`password-changed`); emite `auth:password-changed` con `sessionsRevoked` | `MissingCredentialsError`, `InvalidCredentialsError`, `InvalidPasswordError` |
-| `login(identifier, password, device?)` | identifier = username o email (resueltos por el directorio); cuenta `ACTIVE` | Orden: directorio → credenciales → lockout → contraseña → estado → **emisión de sesión**. Éxito: resetea contadores, emite `auth:login-succeeded` + `auth:session-issued`, devuelve `{ userId, session: SessionInfo & { token } }` (el token se entrega una sola vez) | `InvalidCredentialsError` (genérico anti-enumeración), `AccountLockedError`, `AccountNotActiveError` |
+| `login(identifier, password, device?)` | identifier = username o email (resueltos por el directorio); cuenta `ACTIVE` | Orden: directorio → credenciales → lockout → contraseña → estado → **MFA** → emisión de sesión. Sin MFA: emite `{ userId, session, refreshToken }`. Con MFA activo: **lanza `MfaRequiredError` que porta un `mfaToken`** (challenge) | `InvalidCredentialsError` (genérico anti-enumeración), `AccountLockedError`, `AccountNotActiveError`, `MfaRequiredError` |
+| `completeMfaLogin(mfaToken, code)` | challenge válido (no consumido/expirado/agotado); código TOTP o backup code válido | Segundo paso del login MFA (ADR-0010): consume el challenge (single-use), aplica anti-replay TOTP o consume backup code, emite el par sesión+refresh con el fingerprint del challenge | `InvalidMfaChallengeError`, `InvalidMfaCodeError` (falla suma intentos; al 5º el challenge muere), `AccountNotActiveError` |
+| `enrollMfa(userId)` | usuario existe en directorio; sin MFA activo | Genera secret TOTP (PENDING, entrega única) + URI `otpauth://`; emite `auth:mfa-enrollment-started` | `UnknownUserError`, `MfaAlreadyActiveError` |
+| `confirmMfa(userId, code)` | enrolamiento PENDING; código válido | Activa MFA, genera 10 backup codes (entrega única, persistidos solo como SHA-256); emite `auth:mfa-activated` | `MfaNotEnrolledError`, `InvalidMfaCodeError` |
+| `disableMfa(userId, code)` | MFA activo; factor válido (TOTP o backup) | Elimina el record MFA; emite `auth:mfa-disabled` | `MfaNotEnrolledError`, `InvalidMfaCodeError` |
+| `getMfaStatus(userId)` | módulo inicializado | `{ enrolled, active }` para la UI (no revela secrets) | — |
 | `validateSession(token)` | módulo inicializado | Devuelve `SessionInfo` si la sesión es válida; `null` si desconocida/expirada/revocada (no revela cuál). Actualiza `lastSeenAt` | `Error('Not Initialized')` |
 | `logout(token)` | — | Revoca la sesión (`reason: 'logout'`); `false` si no existe o ya estaba revocada | — |
 | `logoutUser(userId)` | — | Revoca todas las sesiones activas del usuario (`reason: 'logout-all'`); devuelve el conteo | — |
@@ -92,6 +102,20 @@ Garantías de sesiones (ADR-0008):
   sesión actual de la familia + evento de seguridad.
 - Reset de contraseña: tokens de 1 h (`PASSWORD_RESET_DEFAULTS.tokenTtlMs`),
   single-use, invalidación de anteriores, anti-enumeración.
+
+Garantías de MFA (ADR-0010):
+- TOTP RFC 6238 (`TotpService` zero-deps, validado contra vectores RFC):
+  30 s / 6 dígitos / ventana ±1 / secret 160 bits base32 / reloj inyectable.
+- Login en dos pasos con challenge: `MFA_CHALLENGE_DEFAULTS = { challengeTtlMs:
+  300_000, maxAttempts: 5, backupCodes: 10 }`; mfaToken opaco hasheado,
+  single-use, porta el fingerprint del intento.
+- Anti-replay TOTP (`lastAcceptedStep`); backup codes one-way (SHA-256) de
+  consumo individual.
+- ⚠️ El secret TOTP se almacena **en claro** (reversible por naturaleza; sin
+  backend no hay KMS real): deuda explícita — cifrar en reposo en producción
+  (ADR-0010 §3).
+- `refresh` NO pide segundo factor (el RT ya prueba autenticación completa);
+  MFA aplica a logins nuevos.
 - `riskSnapshot` nace en `{ riskLevel: 'UNKNOWN' }`; el Risk Engine (Fase 8)
   lo poblará sin cambio de esquema.
 - `device.fingerprint` lo aporta el cliente (default `'unknown'`).
@@ -149,6 +173,10 @@ Todos con `category: 'domain'`, `source: { moduleId: 'authentication', entity: '
 | `auth:refresh-reuse-detected` | al presentarse un RT consumido (posible robo) | `{ userId, sessionId }` (sesión revocada defensivamente) |
 | `auth:password-reset-requested` | tras `requestPasswordReset` | `{ userId? }` — ausente si el identifier no existe |
 | `auth:password-reset` | tras `resetPassword` exitoso | `{ userId, sessionsRevoked }` |
+| `auth:mfa-enrollment-started` | tras `enrollMfa` | `{ userId }` |
+| `auth:mfa-activated` | tras `confirmMfa` exitoso | `{ userId }` |
+| `auth:mfa-disabled` | tras `disableMfa` | `{ userId }` |
+| `auth:login-mfa-required` | login con contraseña OK + MFA activo (challenge emitido) | `{ userId }` |
 
 Ningún payload incluye tokens ni contraseñas.
 
@@ -160,6 +188,8 @@ Ningún payload incluye tokens ni contraseñas.
 | `auth:sessions` | `SessionRecord` (`id` = SHA-256 del token) | `{ userId, deviceFingerprint, issuedAt, expiresAt, lastSeenAt, riskSnapshot, revokedAt?, revokedReason? }` |
 | `auth:refresh-tokens` | `RefreshTokenRecord` (`id` = SHA-256 del RT) | `{ userId, sessionId, issuedAt, expiresAt, consumedAt?, rotatedToHash?, revokedAt?, revokedReason? }` |
 | `auth:password-reset-tokens` | `PasswordResetTokenRecord` (`id` = SHA-256 del token) | `{ userId, createdAt, expiresAt, consumedAt?, invalidatedAt? }` |
+| `auth:mfa` | `MfaRecord` (`id` = userId) | `{ status, secret?, pendingSecret?, lastAcceptedStep?, backupCodeHashes?, createdAt, updatedAt }` — ⚠️ secret en claro (deuda ADR-0010) |
+| `auth:mfa-challenges` | `MfaChallengeRecord` (`id` = SHA-256 del mfaToken) | `{ userId, deviceFingerprint, createdAt, expiresAt, consumedAt?, attempts }` |
 
 Solo hashes auto-descriptivos y de tokens; contadores de lockout y sesiones
 revocadas persistidos (sobreviven reinicios; las revocaciones se conservan
@@ -173,14 +203,18 @@ para audit, no se borran).
 
 ## 6. Deuda conocida
 
-- **MFA (TOTP)**: Iteración 6d — cierra la Fase 4.
-- Sin rate-limiting por IP/dispositivo en login y `requestPasswordReset`
-  (llegará con backend + Risk Engine).
+- Secret TOTP en claro hasta backend con KMS/cifrado en reposo (ADR-0010 §3,
+  verificación en Fase 8).
+- Sin rate-limiting por IP/dispositivo en login, `completeMfaLogin` y
+  `requestPasswordReset` (llegará con backend + Risk Engine; la cota de
+  intentos por challenge mitiga el ataque a códigos MFA).
+- Sin regeneración de backup codes (camino actual: disable + re-enroll) ni
+  email de notificación "nuevo factor activado" / "contraseña cambiada".
 - Sin complejidad de contraseña ni detección de credenciales filtradas.
 - Re-hash automático al migrar de algoritmo (gancho previsto en el formato,
   implementación cuando exista Argon2id en backend).
-- GC de sesiones expiradas/revocadas, RT consumidos y tokens de email/reset
-  pendientes (un único job futuro).
-- Sin email de notificación "tu contraseña cambió" (llegará con proveedor real).
+- GC de sesiones expiradas/revocadas, RT consumidos, challenges y tokens de
+  email/reset pendientes (un único job futuro).
 - Cambio de email con re-verificación: deuda de identity.
-- UI de login en la web: propuesta al cerrar la Fase 4 (6d).
+- QR de enrolamiento: la URI `otpauth://` está lista; el render del QR es
+  cliente (UI de login/MFA, próxima candidata).

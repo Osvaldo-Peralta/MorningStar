@@ -104,6 +104,64 @@ export class ResetTokenExpiredError extends AuthenticationError {
 }
 
 /**
+ * La cuenta tiene MFA activo: el login requiere segundo factor (ADR-0010).
+ * Porta el `mfaToken` del challenge (opaco, single-use, TTL corto) que el
+ * cliente presenta en `completeMfaLogin(mfaToken, code)`.
+ */
+export class MfaRequiredError extends AuthenticationError {
+  readonly mfaToken: string
+
+  constructor(mfaToken: string) {
+    super('MFA verification required')
+    this.name = 'MfaRequiredError'
+    this.mfaToken = mfaToken
+  }
+}
+
+/** Challenge MFA desconocido, expirado, consumido o agotado por intentos. */
+export class InvalidMfaChallengeError extends AuthenticationError {
+  constructor() {
+    super('Invalid MFA challenge')
+    this.name = 'InvalidMfaChallengeError'
+  }
+}
+
+/** Código de segundo factor inválido (TOTP o backup code). */
+export class InvalidMfaCodeError extends AuthenticationError {
+  constructor() {
+    super('Invalid MFA code')
+    this.name = 'InvalidMfaCodeError'
+  }
+}
+
+/** Operación MFA sobre un usuario sin enrolamiento (pending o activo). */
+export class MfaNotEnrolledError extends AuthenticationError {
+  constructor() {
+    super('MFA is not enrolled for this user')
+    this.name = 'MfaNotEnrolledError'
+  }
+}
+
+/** Enrolamiento sobre una cuenta que ya tiene MFA activo (requiere disable previo). */
+export class MfaAlreadyActiveError extends AuthenticationError {
+  constructor() {
+    super('MFA is already active for this user; disable it first')
+    this.name = 'MfaAlreadyActiveError'
+  }
+}
+
+/** El usuario no existe en el directorio (flujo de enrolamiento MFA). */
+export class UnknownUserError extends AuthenticationError {
+  readonly userId: string
+
+  constructor(userId: string) {
+    super(`Unknown user '${userId}'`)
+    this.name = 'UnknownUserError'
+    this.userId = userId
+  }
+}
+
+/**
  * La contraseña es correcta pero el estado de la cuenta no permite login
  * (solo se lanza DESPUÉS de validar credenciales: la información de estado
  * solo la ve el dueño legítimo — ADR-0007).

@@ -2,6 +2,10 @@
 import type {
   AccountLockedPayload,
   LoginFailedPayload,
+  LoginMfaRequiredPayload,
+  MfaActivatedPayload,
+  MfaDisabledPayload,
+  MfaEnrollmentStartedPayload,
   LoginSucceededPayload,
   PasswordChangedPayload,
   PasswordResetPayload,
@@ -28,6 +32,10 @@ export interface AuthenticationEventMap {
   'auth:refresh-reuse-detected': RefreshReuseDetectedPayload
   'auth:password-reset-requested': PasswordResetRequestedPayload
   'auth:password-reset': PasswordResetPayload
+  'auth:mfa-enrollment-started': MfaEnrollmentStartedPayload
+  'auth:mfa-activated': MfaActivatedPayload
+  'auth:mfa-disabled': MfaDisabledPayload
+  'auth:login-mfa-required': LoginMfaRequiredPayload
 }
 
 /**
@@ -48,5 +56,9 @@ declare module '@morningstar/core' {
     'auth:refresh-reuse-detected': RefreshReuseDetectedPayload
     'auth:password-reset-requested': PasswordResetRequestedPayload
     'auth:password-reset': PasswordResetPayload
+    'auth:mfa-enrollment-started': MfaEnrollmentStartedPayload
+    'auth:mfa-activated': MfaActivatedPayload
+    'auth:mfa-disabled': MfaDisabledPayload
+    'auth:login-mfa-required': LoginMfaRequiredPayload
   }
 }

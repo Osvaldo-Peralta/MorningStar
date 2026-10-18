@@ -13,7 +13,12 @@ import {
 import { PhotoFeedModule } from '@morningstar/photo-feed'
 import { RuntimeLoggerModule } from '@morningstar/runtime-logger'
 import { IdentityModule } from '@morningstar/identity'
-import { AuthenticationModule, Pbkdf2PasswordHasher } from '@morningstar/authentication'
+import {
+  AuthenticationModule,
+  MfaRequiredError,
+  Pbkdf2PasswordHasher,
+  TotpService,
+} from '@morningstar/authentication'
 
 async function bootstrap() {
   const eventBus = new InMemoryEventBus<CoreEventMap>()
@@ -136,6 +141,27 @@ async function bootstrap() {
 
   await authentication.logout(refreshed.session.token)
   console.log('Logout: ', (await authentication.validateSession(refreshed.session.token)) === null)
+
+  // MFA (Fase 4 / 6d): enrolamiento TOTP + login en dos pasos
+  const mfaEnrollment = await authentication.enrollMfa(verifiedUser.id)
+  const mfaCode = await new TotpService().generateCode(mfaEnrollment.secret)
+  const mfaActivation = await authentication.confirmMfa(verifiedUser.id, mfaCode)
+  console.log('MFA activo. Backup codes (entrega única): ', mfaActivation.backupCodes.length)
+
+  try {
+    await authentication.login('osvaldodev', 'SecurePass123!', { fingerprint: 'bootstrap-demo-device' })
+    console.log('Inesperado: login sin segundo factor')
+  } catch (err) {
+    if (err instanceof MfaRequiredError) {
+      // Segundo paso con backup code (determinista; el TOTP depende de la ventana de 30 s)
+      const mfaLogin = await authentication.completeMfaLogin(
+        err.mfaToken,
+        mfaActivation.backupCodes[0]!
+      )
+      console.log('Login MFA OK (backup code), sesión: ', mfaLogin.session.sessionId.slice(0, 12) + '…')
+      await authentication.logout(mfaLogin.session.token)
+    }
+  }
 
   await photoFeed.addPhoto('https://example.com/photo1.jpg')
   await photoFeed.addPhoto('https://example.com/photo2.jpg')

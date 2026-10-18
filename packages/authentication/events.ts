@@ -15,12 +15,17 @@ export const AUTH_EVENTS = {
   REFRESH_REUSE_DETECTED: 'auth:refresh-reuse-detected',
   PASSWORD_RESET_REQUESTED: 'auth:password-reset-requested',
   PASSWORD_RESET: 'auth:password-reset',
+  MFA_ENROLLMENT_STARTED: 'auth:mfa-enrollment-started',
+  MFA_ACTIVATED: 'auth:mfa-activated',
+  MFA_DISABLED: 'auth:mfa-disabled',
+  LOGIN_MFA_REQUIRED: 'auth:login-mfa-required',
 } as const
 
 export type LoginFailedReason =
   | 'invalid-credentials'
   | 'locked'
   | 'account-not-active'
+  | 'invalid-mfa-code'
 
 export interface PasswordSetPayload {
   readonly userId: string
@@ -85,4 +90,20 @@ export interface PasswordResetRequestedPayload {
 export interface PasswordResetPayload {
   readonly userId: string
   readonly sessionsRevoked: number
+}
+
+export interface MfaEnrollmentStartedPayload {
+  readonly userId: string
+}
+
+export interface MfaActivatedPayload {
+  readonly userId: string
+}
+
+export interface MfaDisabledPayload {
+  readonly userId: string
+}
+
+export interface LoginMfaRequiredPayload {
+  readonly userId: string
 }

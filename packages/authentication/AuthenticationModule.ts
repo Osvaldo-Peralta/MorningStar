@@ -5,6 +5,14 @@ import type { CredentialRecord } from './domain/CredentialRecord.js'
 import type { RefreshTokenRecord } from './domain/RefreshTokenRecord.js'
 import type { PasswordResetTokenRecord } from './domain/PasswordResetTokenRecord.js'
 import type {
+  MfaActivation,
+  MfaChallengeRecord,
+  MfaEnrollment,
+  MfaRecord,
+  MfaStatus,
+} from './domain/MfaRecord.js'
+import { TotpService } from './domain/TotpService.js'
+import type {
   DeviceInfo,
   SessionInfo,
   SessionRecord,
@@ -19,13 +27,19 @@ import {
   AccountLockedError,
   AccountNotActiveError,
   InvalidCredentialsError,
+  InvalidMfaChallengeError,
+  InvalidMfaCodeError,
   InvalidRefreshTokenError,
   InvalidResetTokenError,
+  MfaAlreadyActiveError,
+  MfaNotEnrolledError,
+  MfaRequiredError,
   MissingCredentialsError,
   RefreshTokenReuseError,
   ResetTokenAlreadyUsedError,
   ResetTokenExpiredError,
   ResetTokenInvalidatedError,
+  UnknownUserError,
 } from './errors.js'
 import { AUTH_EVENTS } from './events.js'
 
@@ -34,6 +48,8 @@ const CREDENTIALS_NAMESPACE = 'auth:credentials'
 const SESSIONS_NAMESPACE = 'auth:sessions'
 const REFRESH_TOKENS_NAMESPACE = 'auth:refresh-tokens'
 const PASSWORD_RESET_TOKENS_NAMESPACE = 'auth:password-reset-tokens'
+const MFA_NAMESPACE = 'auth:mfa'
+const MFA_CHALLENGES_NAMESPACE = 'auth:mfa-challenges'
 
 /** Defaults del lockout anti fuerza-bruta (ADR-0007). */
 export const LOCKOUT_DEFAULTS = {
@@ -52,8 +68,32 @@ export const PASSWORD_RESET_DEFAULTS = {
   tokenTtlMs: 60 * 60 * 1000, // 1 hora
 } as const
 
+/** Defaults del challenge MFA de login (ADR-0010). */
+export const MFA_CHALLENGE_DEFAULTS = {
+  challengeTtlMs: 5 * 60 * 1000, // 5 minutos
+  maxAttempts: 5,                 // intentos de código por challenge
+  backupCodes: 10,
+} as const
+
 /** Base del enlace de reset (placeholder hasta que exista la app pública — ADR-0009). */
 export const PASSWORD_RESET_LINK_BASE = 'https://morningstar.app/reset-password'
+
+/** Alfabeto de backup codes sin caracteres ambiguos (0/O, 1/I). */
+const BACKUP_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+
+function generateBackupCodes(count: number): string[] {
+  const codes: string[] = []
+  for (let i = 0; i < count; i++) {
+    const bytes = crypto.getRandomValues(new Uint8Array(10))
+    const chars = Array.from(bytes, (byte) => BACKUP_CODE_ALPHABET[byte % BACKUP_CODE_ALPHABET.length]!).join('')
+    codes.push(`${chars.slice(0, 5)}-${chars.slice(5)}`)
+  }
+  return codes
+}
+
+function normalizeBackupCode(code: string): string {
+  return code.trim().toUpperCase().replace(/[\s-]/g, '')
+}
 
 export interface SessionPolicy {
   readonly accessTokenTtlMs?: number
@@ -62,6 +102,11 @@ export interface SessionPolicy {
 
 export interface PasswordResetPolicy {
   readonly tokenTtlMs?: number
+}
+
+export interface MfaPolicy {
+  readonly challengeTtlMs?: number
+  readonly maxAttempts?: number
 }
 
 export interface LockoutPolicy {
@@ -82,6 +127,10 @@ export interface AuthenticationModuleOptions {
   readonly session?: SessionPolicy
   /** Overrides del reset de contraseña (default: tokens de 1 h — ADR-0009). */
   readonly passwordReset?: PasswordResetPolicy
+  /** Overrides de MFA (defaults: challenge 5 min, 5 intentos — ADR-0010). */
+  readonly mfa?: MfaPolicy
+  /** Servicio TOTP inyectable (tests con reloj determinista — ADR-0010). */
+  readonly totp?: TotpService
 }
 
 /**
@@ -113,7 +162,7 @@ export interface LoginResult {
  */
 export class AuthenticationModule implements AppModule {
   readonly id = 'authentication'
-  readonly version = '0.3.0'
+  readonly version = '0.4.0'
 
   private readonly hasher: PasswordHasher
   private readonly directory: UserDirectoryPort
@@ -123,11 +172,16 @@ export class AuthenticationModule implements AppModule {
   private readonly accessTokenTtlMs: number
   private readonly refreshTokenTtlMs: number
   private readonly resetTokenTtlMs: number
+  private readonly mfaChallengeTtlMs: number
+  private readonly mfaMaxAttempts: number
+  private readonly totp: TotpService
 
   private credentials?: Repository<CredentialRecord>
   private sessions?: Repository<SessionRecord>
   private refreshTokens?: Repository<RefreshTokenRecord>
   private resetTokens?: Repository<PasswordResetTokenRecord>
+  private mfaRecords?: Repository<MfaRecord>
+  private mfaChallenges?: Repository<MfaChallengeRecord>
   private emailDelivery?: EmailDelivery
   private events?: CoreContext['events']
 
@@ -151,6 +205,9 @@ export class AuthenticationModule implements AppModule {
     this.accessTokenTtlMs = options.session?.accessTokenTtlMs ?? SESSION_DEFAULTS.accessTokenTtlMs
     this.refreshTokenTtlMs = options.session?.refreshTokenTtlMs ?? SESSION_DEFAULTS.refreshTokenTtlMs
     this.resetTokenTtlMs = options.passwordReset?.tokenTtlMs ?? PASSWORD_RESET_DEFAULTS.tokenTtlMs
+    this.mfaChallengeTtlMs = options.mfa?.challengeTtlMs ?? MFA_CHALLENGE_DEFAULTS.challengeTtlMs
+    this.mfaMaxAttempts = options.mfa?.maxAttempts ?? MFA_CHALLENGE_DEFAULTS.maxAttempts
+    this.totp = options.totp ?? new TotpService()
   }
 
   async init(context: CoreContext): Promise<void> {
@@ -163,6 +220,8 @@ export class AuthenticationModule implements AppModule {
     this.sessions = context.persistence.repository<SessionRecord>(SESSIONS_NAMESPACE)
     this.refreshTokens = context.persistence.repository<RefreshTokenRecord>(REFRESH_TOKENS_NAMESPACE)
     this.resetTokens = context.persistence.repository<PasswordResetTokenRecord>(PASSWORD_RESET_TOKENS_NAMESPACE)
+    this.mfaRecords = context.persistence.repository<MfaRecord>(MFA_NAMESPACE)
+    this.mfaChallenges = context.persistence.repository<MfaChallengeRecord>(MFA_CHALLENGES_NAMESPACE)
     this.emailDelivery = context.email
     this.events = context.events
   }
@@ -174,6 +233,8 @@ export class AuthenticationModule implements AppModule {
     this.sessions = undefined
     this.refreshTokens = undefined
     this.resetTokens = undefined
+    this.mfaRecords = undefined
+    this.mfaChallenges = undefined
     this.emailDelivery = undefined
     this.events = undefined
     this.dummyHashPromise = undefined
@@ -259,7 +320,7 @@ export class AuthenticationModule implements AppModule {
    * revela con contraseña válida.
    */
   async login(identifier: string, password: string, device?: DeviceInfo): Promise<LoginResult> {
-    if (!this.credentials || !this.sessions || !this.refreshTokens || !this.events) throw new Error('Not Initialized')
+    if (!this.credentials || !this.sessions || !this.refreshTokens || !this.mfaRecords || !this.mfaChallenges || !this.events) throw new Error('Not Initialized')
 
     // 1. Directorio (username o email; la normalización la hace el adaptador)
     const entry = await this.directory.lookupUser(identifier)
@@ -353,57 +414,33 @@ export class AuthenticationModule implements AppModule {
       })
     }
 
-    // 6. Emisión de sesión (Baseline §2: userId, deviceFingerprint, issuedAt,
-    //    expiresAt, riskSnapshot). Token opaco: solo se persiste su hash y
-    //    solo se entrega aquí, una vez (ADR-0008).
-    const token = generateOpaqueToken()
-    const sessionId = await hashOpaqueToken(token)
-    const issuedAt = Date.now()
-    const expiresAt = issuedAt + this.accessTokenTtlMs
-    const deviceFingerprint = device?.fingerprint ?? 'unknown'
+    // 5b. MFA activo ⇒ challenge de segundo factor; NO se emite sesión todavía
+    //     (ADR-0010). El cliente continúa con completeMfaLogin(mfaToken, code).
+    const mfa = await this.mfaRecords!.get(entry.userId)
+    if (mfa && mfa.status === 'active') {
+      const mfaToken = generateOpaqueToken()
+      await this.mfaChallenges!.save({
+        id: await hashOpaqueToken(mfaToken),
+        userId: entry.userId,
+        deviceFingerprint: device?.fingerprint ?? 'unknown',
+        createdAt: now,
+        expiresAt: now + this.mfaChallengeTtlMs,
+        attempts: 0,
+      })
 
-    const sessionRecord: SessionRecord = {
-      id: sessionId,
-      userId: entry.userId,
-      deviceFingerprint,
-      issuedAt,
-      expiresAt,
-      lastSeenAt: issuedAt,
-      riskSnapshot: { riskLevel: 'UNKNOWN' }, // Fase 8 (Risk Engine) lo poblará
+      this.events.emit({
+        name: AUTH_EVENTS.LOGIN_MFA_REQUIRED,
+        category: 'domain',
+        source: { moduleId: this.id, entity: 'session', entityId: entry.userId },
+        payload: { userId: entry.userId },
+        timestamp: Date.now(),
+      })
+
+      throw new MfaRequiredError(mfaToken)
     }
-    await this.sessions.save(sessionRecord)
 
-    this.events.emit({
-      name: AUTH_EVENTS.LOGIN_SUCCEEDED,
-      category: 'domain',
-      source: { moduleId: this.id, entity: 'session', entityId: entry.userId },
-      payload: { userId: entry.userId },
-      timestamp: now,
-    })
-
-    this.events.emit({
-      name: AUTH_EVENTS.SESSION_ISSUED,
-      category: 'domain',
-      source: { moduleId: this.id, entity: 'session', entityId: entry.userId },
-      payload: { userId: entry.userId, sessionId, deviceFingerprint, expiresAt },
-      timestamp: now,
-    })
-
-    // 7. Refresh token (ADR-0009): pareja de la sesión, con rotación.
-    const refreshToken = generateOpaqueToken()
-    await this.refreshTokens.save({
-      id: await hashOpaqueToken(refreshToken),
-      userId: entry.userId,
-      sessionId,
-      issuedAt,
-      expiresAt: issuedAt + this.refreshTokenTtlMs,
-    })
-
-    return {
-      userId: entry.userId,
-      session: { ...toSessionInfo(sessionRecord), token },
-      refreshToken,
-    }
+    // 6. Emisión de sesión + refresh token (ADR-0008/0009)
+    return this.issueSession(entry.userId, device?.fingerprint ?? 'unknown', now)
   }
 
   /**
@@ -486,8 +523,7 @@ export class AuthenticationModule implements AppModule {
       .map(toSessionInfo)
   }
 
-  private async revokeUserSessions(userId: string, reason: SessionRevokedReason): Promise<number> {
-    const now = Date.now()
+  private async revokeUserSessions(userId: string, reason: SessionRevokedReason): Promise<number> {    const now = Date.now()
     const all = await this.sessions!.list()
     let count = 0
     for (const record of all) {
@@ -731,6 +767,256 @@ export class AuthenticationModule implements AppModule {
       payload: { userId: record.userId, sessionsRevoked },
       timestamp: Date.now(),
     })
+  }
+
+  /**
+   * Segundo factor del login (ADR-0010): consume el challenge emitido por
+   * `login` cuando la cuenta tiene MFA activo. Acepta código TOTP (con
+   * anti-replay por step) o backup code (hash one-way, consumo individual).
+   *
+   * Intentos: hasta `maxAttempts` por challenge; al agotarse, el challenge
+   * muere (nuevo login requerido). Los fallos de código NO alimentan el
+   * lockout de contraseña (contadores separados).
+   */
+  async completeMfaLogin(mfaToken: string, code: string): Promise<LoginResult> {
+    if (!this.sessions || !this.refreshTokens || !this.mfaRecords || !this.mfaChallenges || !this.events) {
+      throw new Error('Not Initialized')
+    }
+
+    const challenge = await this.mfaChallenges.get(await hashOpaqueToken(mfaToken))
+    const now = Date.now()
+    if (!challenge || challenge.consumedAt !== undefined || now > challenge.expiresAt) {
+      throw new InvalidMfaChallengeError()
+    }
+
+    const account = await this.directory.getUserAccount(challenge.userId)
+    if (!account) throw new InvalidMfaChallengeError()
+    if (account.accountStatus !== 'ACTIVE') {
+      throw new AccountNotActiveError(account.accountStatus)
+    }
+
+    const mfa = await this.mfaRecords.get(challenge.userId)
+    if (!mfa || mfa.status !== 'active' || !mfa.secret) {
+      throw new InvalidMfaChallengeError()
+    }
+
+    // 1) TOTP con anti-replay (el step debe ser posterior al último aceptado).
+    //    El reloj lo aporta el TotpService (inyectable en tests — ADR-0010).
+    let updatedMfa: MfaRecord | null = null
+    const matchedStep = await this.totp.verifyCode(mfa.secret, code)
+    if (matchedStep !== null && (mfa.lastAcceptedStep === undefined || matchedStep > mfa.lastAcceptedStep)) {
+      updatedMfa = { ...mfa, lastAcceptedStep: matchedStep, updatedAt: now }
+    }
+
+    // 2) Backup code: hash one-way, consumo individual
+    if (!updatedMfa) {
+      const codeHash = await hashOpaqueToken(normalizeBackupCode(code))
+      const hashes = mfa.backupCodeHashes ?? []
+      const index = hashes.indexOf(codeHash)
+      if (index !== -1) {
+        updatedMfa = {
+          ...mfa,
+          backupCodeHashes: hashes.filter((_, i) => i !== index),
+          updatedAt: now,
+        }
+      }
+    }
+
+    if (!updatedMfa) {
+      const attempts = challenge.attempts + 1
+      await this.mfaChallenges.save(
+        attempts >= this.mfaMaxAttempts
+          ? { ...challenge, attempts, consumedAt: now } // intentos agotados: el challenge muere
+          : { ...challenge, attempts }
+      )
+      this.events.emit({
+        name: AUTH_EVENTS.LOGIN_FAILED,
+        category: 'domain',
+        source: { moduleId: this.id, entity: 'session', entityId: challenge.userId },
+        payload: { userId: challenge.userId, reason: 'invalid-mfa-code' },
+        timestamp: now,
+      })
+      throw new InvalidMfaCodeError()
+    }
+
+    // Éxito: consumir challenge (single-use), persistir estado MFA y emitir par
+    await this.mfaRecords.save(updatedMfa)
+    await this.mfaChallenges.save({ ...challenge, consumedAt: now })
+
+    return this.issueSession(challenge.userId, challenge.deviceFingerprint, now)
+  }
+
+  /** Inicia el enrolamiento MFA: genera secret y URI otpauth:// (PENDING). */
+  async enrollMfa(userId: string): Promise<MfaEnrollment> {
+    if (!this.mfaRecords || !this.events) throw new Error('Not Initialized')
+
+    const account = await this.directory.getUserAccount(userId)
+    if (!account) throw new UnknownUserError(userId)
+
+    const existing = await this.mfaRecords.get(userId)
+    if (existing?.status === 'active') throw new MfaAlreadyActiveError()
+
+    const secret = this.totp.generateSecret()
+    const now = Date.now()
+    await this.mfaRecords.save({
+      id: userId,
+      status: 'pending',
+      pendingSecret: secret, // re-enrolamiento pisa el pending anterior
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    })
+
+    this.events.emit({
+      name: AUTH_EVENTS.MFA_ENROLLMENT_STARTED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'credentials', entityId: userId },
+      payload: { userId },
+      timestamp: now,
+    })
+
+    return {
+      secret, // se muestra UNA sola vez
+      otpauthUri: this.totp.generateTotpUri(secret, account.email),
+    }
+  }
+
+  /** Confirma el enrolamiento con un código válido y activa MFA + backup codes. */
+  async confirmMfa(userId: string, code: string): Promise<MfaActivation> {
+    if (!this.mfaRecords || !this.events) throw new Error('Not Initialized')
+
+    const record = await this.mfaRecords.get(userId)
+    if (!record || record.status !== 'pending' || !record.pendingSecret) {
+      throw new MfaNotEnrolledError()
+    }
+
+    const now = Date.now()
+    const step = await this.totp.verifyCode(record.pendingSecret, code)
+    if (step === null) throw new InvalidMfaCodeError()
+
+    const backupCodes = generateBackupCodes(MFA_CHALLENGE_DEFAULTS.backupCodes)
+    const backupCodeHashes = await Promise.all(
+      backupCodes.map((backupCode) => hashOpaqueToken(normalizeBackupCode(backupCode)))
+    )
+
+    await this.mfaRecords.save({
+      id: userId,
+      status: 'active',
+      secret: record.pendingSecret,
+      lastAcceptedStep: step,
+      backupCodeHashes,
+      createdAt: record.createdAt,
+      updatedAt: now,
+    })
+
+    this.events.emit({
+      name: AUTH_EVENTS.MFA_ACTIVATED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'credentials', entityId: userId },
+      payload: { userId },
+      timestamp: now,
+    })
+
+    return { backupCodes } // se muestran UNA sola vez
+  }
+
+  /** Desactiva MFA exigiendo un factor válido (TOTP o backup code). */
+  async disableMfa(userId: string, code: string): Promise<void> {
+    if (!this.mfaRecords || !this.events) throw new Error('Not Initialized')
+
+    const record = await this.mfaRecords.get(userId)
+    if (!record || record.status !== 'active' || !record.secret) {
+      throw new MfaNotEnrolledError()
+    }
+
+    const now = Date.now()
+    const step = await this.totp.verifyCode(record.secret, code)
+    const totpOk =
+      step !== null && (record.lastAcceptedStep === undefined || step > record.lastAcceptedStep)
+
+    let backupOk = false
+    if (!totpOk) {
+      const codeHash = await hashOpaqueToken(normalizeBackupCode(code))
+      backupOk = (record.backupCodeHashes ?? []).includes(codeHash)
+    }
+
+    if (!totpOk && !backupOk) throw new InvalidMfaCodeError()
+
+    await this.mfaRecords.remove(userId)
+
+    this.events.emit({
+      name: AUTH_EVENTS.MFA_DISABLED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'credentials', entityId: userId },
+      payload: { userId },
+      timestamp: now,
+    })
+  }
+
+  /** Estado MFA para la UI (no revela secrets). */
+  async getMfaStatus(userId: string): Promise<MfaStatus> {
+    if (!this.mfaRecords) throw new Error('Not Initialized')
+    const record = await this.mfaRecords.get(userId)
+    return {
+      enrolled: record !== null,
+      active: record?.status === 'active',
+    }
+  }
+
+  /**
+   * Emite el par sesión + refresh token (ADR-0008/0009).
+   * Compartido por `login` y `completeMfaLogin`.
+   */
+  private async issueSession(
+    userId: string,
+    deviceFingerprint: string,
+    now: number
+  ): Promise<LoginResult> {
+    const token = generateOpaqueToken()
+    const sessionId = await hashOpaqueToken(token)
+    const issuedAt = now
+    const expiresAt = issuedAt + this.accessTokenTtlMs
+
+    const sessionRecord: SessionRecord = {
+      id: sessionId,
+      userId,
+      deviceFingerprint,
+      issuedAt,
+      expiresAt,
+      lastSeenAt: issuedAt,
+      riskSnapshot: { riskLevel: 'UNKNOWN' }, // Fase 8 (Risk Engine) lo poblará
+    }
+    await this.sessions!.save(sessionRecord)
+
+    const refreshToken = generateOpaqueToken()
+    await this.refreshTokens!.save({
+      id: await hashOpaqueToken(refreshToken),
+      userId,
+      sessionId,
+      issuedAt,
+      expiresAt: issuedAt + this.refreshTokenTtlMs,
+    })
+
+    this.events!.emit({
+      name: AUTH_EVENTS.LOGIN_SUCCEEDED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'session', entityId: userId },
+      payload: { userId },
+      timestamp: now,
+    })
+
+    this.events!.emit({
+      name: AUTH_EVENTS.SESSION_ISSUED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'session', entityId: userId },
+      payload: { userId, sessionId, deviceFingerprint, expiresAt },
+      timestamp: now,
+    })
+
+    return {
+      userId,
+      session: { ...toSessionInfo(sessionRecord), token },
+      refreshToken,
+    }
   }
 
   private dummyHash(): Promise<string> {
