@@ -32,7 +32,14 @@ export interface SessionRecord extends PersistedRecord {
   readonly revokedReason?: SessionRevokedReason
 }
 
-export type SessionRevokedReason = 'logout' | 'logout-all' | 'mass-invalidation'
+export type SessionRevokedReason =
+  | 'logout'
+  | 'logout-all'
+  | 'mass-invalidation'
+  | 'rotated'               // refresh con rotación completa (ADR-0009)
+  | 'reuse-detected'        // refresh token robado/reutilizado (ADR-0009)
+  | 'password-changed'
+  | 'password-reset'
 
 /** Información de dispositivo aportada por el llamador en el login. */
 export interface DeviceInfo {

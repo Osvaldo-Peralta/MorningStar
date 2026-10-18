@@ -4,10 +4,14 @@ import type {
   LoginFailedPayload,
   LoginSucceededPayload,
   PasswordChangedPayload,
+  PasswordResetPayload,
+  PasswordResetRequestedPayload,
   PasswordSetPayload,
+  RefreshReuseDetectedPayload,
   SessionIssuedPayload,
   SessionRevokedPayload,
   SessionsInvalidatedPayload,
+  TokenRefreshedPayload,
 } from './events.js'
 
 /** Mapa de eventos del módulo Authentication (contrato público). */
@@ -20,6 +24,10 @@ export interface AuthenticationEventMap {
   'auth:session-issued': SessionIssuedPayload
   'auth:session-revoked': SessionRevokedPayload
   'auth:sessions-invalidated': SessionsInvalidatedPayload
+  'auth:token-refreshed': TokenRefreshedPayload
+  'auth:refresh-reuse-detected': RefreshReuseDetectedPayload
+  'auth:password-reset-requested': PasswordResetRequestedPayload
+  'auth:password-reset': PasswordResetPayload
 }
 
 /**
@@ -36,5 +44,9 @@ declare module '@morningstar/core' {
     'auth:session-issued': SessionIssuedPayload
     'auth:session-revoked': SessionRevokedPayload
     'auth:sessions-invalidated': SessionsInvalidatedPayload
+    'auth:token-refreshed': TokenRefreshedPayload
+    'auth:refresh-reuse-detected': RefreshReuseDetectedPayload
+    'auth:password-reset-requested': PasswordResetRequestedPayload
+    'auth:password-reset': PasswordResetPayload
   }
 }

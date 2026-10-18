@@ -35,7 +35,15 @@ describe('AuthenticationModule — sesiones', () => {
       const user =
         (await identityModule.getByUsername(identifier)) ??
         (await identityModule.getByEmail(identifier))
-      return user ? { userId: user.id, accountStatus: user.accountStatus } : null
+      return user
+        ? { userId: user.id, accountStatus: user.accountStatus, email: user.email }
+        : null
+    },
+    getUserAccount: async (userId) => {
+      const user = await identityModule.getUser(userId)
+      return user
+        ? { userId: user.id, accountStatus: user.accountStatus, email: user.email }
+        : null
     },
   })
 

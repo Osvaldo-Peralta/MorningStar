@@ -90,7 +90,15 @@ async function bootstrap() {
         const user =
           (await identity.getByUsername(identifier)) ??
           (await identity.getByEmail(identifier))
-        return user ? { userId: user.id, accountStatus: user.accountStatus } : null
+        return user
+          ? { userId: user.id, accountStatus: user.accountStatus, email: user.email }
+          : null
+      },
+      getUserAccount: async (userId) => {
+        const user = await identity.getUser(userId)
+        return user
+          ? { userId: user.id, accountStatus: user.accountStatus, email: user.email }
+          : null
       },
     },
   })
@@ -113,14 +121,21 @@ async function bootstrap() {
   const sessionInfo = await authentication.validateSession(loginOk.session.token)
   console.log('Sesión válida: ', sessionInfo?.deviceFingerprint)
 
+  // Refresh con rotación completa (ADR-0009): par nuevo, anterior revocado
+  const refreshed = await authentication.refresh(loginOk.refreshToken)
+  console.log('Refresh OK: ', {
+    nuevaSesión: refreshed.session.sessionId.slice(0, 12) + '…',
+    anteriorRevocada: (await authentication.validateSession(loginOk.session.token)) === null,
+  })
+
   try {
     await authentication.login('osvaldo@morningstar.dev', 'wrong-password')
   } catch (err) {
     console.log('Login rechazado (esperado): ', (err as Error).name)
   }
 
-  await authentication.logout(loginOk.session.token)
-  console.log('Logout: ', (await authentication.validateSession(loginOk.session.token)) === null)
+  await authentication.logout(refreshed.session.token)
+  console.log('Logout: ', (await authentication.validateSession(refreshed.session.token)) === null)
 
   await photoFeed.addPhoto('https://example.com/photo1.jpg')
   await photoFeed.addPhoto('https://example.com/photo2.jpg')

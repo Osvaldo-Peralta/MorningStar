@@ -11,6 +11,10 @@ export const AUTH_EVENTS = {
   SESSION_ISSUED: 'auth:session-issued',
   SESSION_REVOKED: 'auth:session-revoked',
   SESSIONS_INVALIDATED: 'auth:sessions-invalidated',
+  TOKEN_REFRESHED: 'auth:token-refreshed',
+  REFRESH_REUSE_DETECTED: 'auth:refresh-reuse-detected',
+  PASSWORD_RESET_REQUESTED: 'auth:password-reset-requested',
+  PASSWORD_RESET: 'auth:password-reset',
 } as const
 
 export type LoginFailedReason =
@@ -24,6 +28,8 @@ export interface PasswordSetPayload {
 
 export interface PasswordChangedPayload {
   readonly userId: string
+  /** Campo aditivo 6c: sesiones revocadas por el cambio de contraseña. */
+  readonly sessionsRevoked?: number
 }
 
 export interface LoginSucceededPayload {
@@ -59,4 +65,24 @@ export interface SessionRevokedPayload {
 export interface SessionsInvalidatedPayload {
   readonly count: number
   readonly reason: string
+}
+
+export interface TokenRefreshedPayload {
+  readonly userId: string
+  readonly sessionId: string
+}
+
+export interface RefreshReuseDetectedPayload {
+  readonly userId: string
+  readonly sessionId: string
+}
+
+export interface PasswordResetRequestedPayload {
+  /** Ausente cuando el identifier no existe (anti-enumeración, ADR-0009). */
+  readonly userId?: string
+}
+
+export interface PasswordResetPayload {
+  readonly userId: string
+  readonly sessionsRevoked: number
 }

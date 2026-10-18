@@ -1,11 +1,14 @@
 // authentication/AuthenticationModule.ts
 import { ModuleState } from '@morningstar/core'
-import type { AppModule, CoreContext, Repository } from '@morningstar/core'
+import type { AppModule, CoreContext, EmailDelivery, Repository } from '@morningstar/core'
 import type { CredentialRecord } from './domain/CredentialRecord.js'
+import type { RefreshTokenRecord } from './domain/RefreshTokenRecord.js'
+import type { PasswordResetTokenRecord } from './domain/PasswordResetTokenRecord.js'
 import type {
   DeviceInfo,
   SessionInfo,
   SessionRecord,
+  SessionRevokedReason,
 } from './domain/SessionRecord.js'
 import { toSessionInfo } from './domain/SessionRecord.js'
 import { generateOpaqueToken, hashOpaqueToken } from './infraestructure/sessionToken.js'
@@ -16,15 +19,21 @@ import {
   AccountLockedError,
   AccountNotActiveError,
   InvalidCredentialsError,
+  InvalidRefreshTokenError,
+  InvalidResetTokenError,
   MissingCredentialsError,
+  RefreshTokenReuseError,
+  ResetTokenAlreadyUsedError,
+  ResetTokenExpiredError,
+  ResetTokenInvalidatedError,
 } from './errors.js'
 import { AUTH_EVENTS } from './events.js'
 
-/** Namespace del repositorio de credenciales (ADR-0002/0003). */
+/** Namespaces del módulo (ADR-0002/0003). */
 const CREDENTIALS_NAMESPACE = 'auth:credentials'
-
-/** Namespace del repositorio de sesiones (ADR-0008). */
 const SESSIONS_NAMESPACE = 'auth:sessions'
+const REFRESH_TOKENS_NAMESPACE = 'auth:refresh-tokens'
+const PASSWORD_RESET_TOKENS_NAMESPACE = 'auth:password-reset-tokens'
 
 /** Defaults del lockout anti fuerza-bruta (ADR-0007). */
 export const LOCKOUT_DEFAULTS = {
@@ -32,13 +41,27 @@ export const LOCKOUT_DEFAULTS = {
   durationMs: 15 * 60 * 1000, // 15 minutos
 } as const
 
-/** Defaults de sesión (ADR-0008). */
+/** Defaults de sesión y refresh (ADR-0008/0009). */
 export const SESSION_DEFAULTS = {
-  accessTokenTtlMs: 60 * 60 * 1000, // 60 minutos
+  accessTokenTtlMs: 60 * 60 * 1000,           // 60 minutos
+  refreshTokenTtlMs: 30 * 24 * 60 * 60 * 1000, // 30 días
 } as const
+
+/** Defaults del reset de contraseña self-service (ADR-0009). */
+export const PASSWORD_RESET_DEFAULTS = {
+  tokenTtlMs: 60 * 60 * 1000, // 1 hora
+} as const
+
+/** Base del enlace de reset (placeholder hasta que exista la app pública — ADR-0009). */
+export const PASSWORD_RESET_LINK_BASE = 'https://morningstar.app/reset-password'
 
 export interface SessionPolicy {
   readonly accessTokenTtlMs?: number
+  readonly refreshTokenTtlMs?: number
+}
+
+export interface PasswordResetPolicy {
+  readonly tokenTtlMs?: number
 }
 
 export interface LockoutPolicy {
@@ -55,19 +78,21 @@ export interface AuthenticationModuleOptions {
   readonly passwordPolicy?: PasswordPolicyOverrides
   /** Overrides del lockout (default: 5 intentos / 15 min). */
   readonly lockout?: LockoutPolicy
-  /** Overrides de sesiones (default: TTL 60 min — ADR-0008). */
+  /** Overrides de sesiones y refresh (defaults: 60 min / 30 días — ADR-0008/0009). */
   readonly session?: SessionPolicy
+  /** Overrides del reset de contraseña (default: tokens de 1 h — ADR-0009). */
+  readonly passwordReset?: PasswordResetPolicy
 }
 
 /**
- * Resultado de un login exitoso.
- * `userId` se conserva por compatibilidad con la Iteración 6a; `session`
- * (token opaco + metadata) se agregó de forma aditiva en 6b con la Session de
- * la Baseline v1.0 §2 (ADR-0008). El `token` se entrega UNA sola vez aquí.
+ * Resultado de un login/refresh exitoso.
+ * `userId` se conserva por compatibilidad con 6a; `session` (6b) y
+ * `refreshToken` (6c) son aditivos. Ambos tokens se entregan UNA sola vez.
  */
 export interface LoginResult {
   readonly userId: string
   readonly session: SessionInfo & { readonly token: string }
+  readonly refreshToken: string
 }
 
 /**
@@ -88,7 +113,7 @@ export interface LoginResult {
  */
 export class AuthenticationModule implements AppModule {
   readonly id = 'authentication'
-  readonly version = '0.2.0'
+  readonly version = '0.3.0'
 
   private readonly hasher: PasswordHasher
   private readonly directory: UserDirectoryPort
@@ -96,9 +121,14 @@ export class AuthenticationModule implements AppModule {
   private readonly maxFailedAttempts: number
   private readonly lockoutDurationMs: number
   private readonly accessTokenTtlMs: number
+  private readonly refreshTokenTtlMs: number
+  private readonly resetTokenTtlMs: number
 
   private credentials?: Repository<CredentialRecord>
   private sessions?: Repository<SessionRecord>
+  private refreshTokens?: Repository<RefreshTokenRecord>
+  private resetTokens?: Repository<PasswordResetTokenRecord>
+  private emailDelivery?: EmailDelivery
   private events?: CoreContext['events']
 
   /** Hash dummy memoizado: iguala el costo temporal en logins con usuario inexistente. */
@@ -119,6 +149,8 @@ export class AuthenticationModule implements AppModule {
     this.maxFailedAttempts = options.lockout?.maxFailedAttempts ?? LOCKOUT_DEFAULTS.maxFailedAttempts
     this.lockoutDurationMs = options.lockout?.durationMs ?? LOCKOUT_DEFAULTS.durationMs
     this.accessTokenTtlMs = options.session?.accessTokenTtlMs ?? SESSION_DEFAULTS.accessTokenTtlMs
+    this.refreshTokenTtlMs = options.session?.refreshTokenTtlMs ?? SESSION_DEFAULTS.refreshTokenTtlMs
+    this.resetTokenTtlMs = options.passwordReset?.tokenTtlMs ?? PASSWORD_RESET_DEFAULTS.tokenTtlMs
   }
 
   async init(context: CoreContext): Promise<void> {
@@ -129,6 +161,9 @@ export class AuthenticationModule implements AppModule {
     }
     this.credentials = context.persistence.repository<CredentialRecord>(CREDENTIALS_NAMESPACE)
     this.sessions = context.persistence.repository<SessionRecord>(SESSIONS_NAMESPACE)
+    this.refreshTokens = context.persistence.repository<RefreshTokenRecord>(REFRESH_TOKENS_NAMESPACE)
+    this.resetTokens = context.persistence.repository<PasswordResetTokenRecord>(PASSWORD_RESET_TOKENS_NAMESPACE)
+    this.emailDelivery = context.email
     this.events = context.events
   }
 
@@ -137,6 +172,9 @@ export class AuthenticationModule implements AppModule {
   async dispose(): Promise<void> {
     this.credentials = undefined
     this.sessions = undefined
+    this.refreshTokens = undefined
+    this.resetTokens = undefined
+    this.emailDelivery = undefined
     this.events = undefined
     this.dummyHashPromise = undefined
   }
@@ -198,11 +236,15 @@ export class AuthenticationModule implements AppModule {
       updatedAt: now,
     })
 
+    // Cambio de contraseña ⇒ las sesiones vigentes no sobreviven (ADR-0009).
+    // Los refresh tokens quedan inofensivos: refresh valida la sesión y está revocada.
+    const sessionsRevoked = await this.revokeUserSessions(userId, 'password-changed')
+
     this.events.emit({
       name: AUTH_EVENTS.PASSWORD_CHANGED,
       category: 'domain',
       source: { moduleId: this.id, entity: 'credentials', entityId: userId },
-      payload: { userId },
+      payload: { userId, sessionsRevoked },
       timestamp: Date.now(),
     })
   }
@@ -217,7 +259,7 @@ export class AuthenticationModule implements AppModule {
    * revela con contraseña válida.
    */
   async login(identifier: string, password: string, device?: DeviceInfo): Promise<LoginResult> {
-    if (!this.credentials || !this.sessions || !this.events) throw new Error('Not Initialized')
+    if (!this.credentials || !this.sessions || !this.refreshTokens || !this.events) throw new Error('Not Initialized')
 
     // 1. Directorio (username o email; la normalización la hace el adaptador)
     const entry = await this.directory.lookupUser(identifier)
@@ -347,9 +389,20 @@ export class AuthenticationModule implements AppModule {
       timestamp: now,
     })
 
+    // 7. Refresh token (ADR-0009): pareja de la sesión, con rotación.
+    const refreshToken = generateOpaqueToken()
+    await this.refreshTokens.save({
+      id: await hashOpaqueToken(refreshToken),
+      userId: entry.userId,
+      sessionId,
+      issuedAt,
+      expiresAt: issuedAt + this.refreshTokenTtlMs,
+    })
+
     return {
       userId: entry.userId,
       session: { ...toSessionInfo(sessionRecord), token },
+      refreshToken,
     }
   }
 
@@ -386,17 +439,7 @@ export class AuthenticationModule implements AppModule {
   /** Revoca todas las sesiones activas de un usuario. Devuelve cuántas revocó. */
   async logoutUser(userId: string, _reason?: string): Promise<number> {
     if (!this.sessions || !this.events) throw new Error('Not Initialized')
-
-    const now = Date.now()
-    const all = await this.sessions.list()
-    let count = 0
-    for (const record of all) {
-      if (record.userId === userId && record.revokedAt === undefined && now <= record.expiresAt) {
-        await this.revokeSession(record, 'logout-all')
-        count++
-      }
-    }
-    return count
+    return this.revokeUserSessions(userId, 'logout-all')
   }
 
   /**
@@ -443,7 +486,20 @@ export class AuthenticationModule implements AppModule {
       .map(toSessionInfo)
   }
 
-  private async revokeSession(record: SessionRecord, reason: 'logout' | 'logout-all'): Promise<void> {
+  private async revokeUserSessions(userId: string, reason: SessionRevokedReason): Promise<number> {
+    const now = Date.now()
+    const all = await this.sessions!.list()
+    let count = 0
+    for (const record of all) {
+      if (record.userId === userId && record.revokedAt === undefined && now <= record.expiresAt) {
+        await this.revokeSession(record, reason)
+        count++
+      }
+    }
+    return count
+  }
+
+  private async revokeSession(record: SessionRecord, reason: SessionRevokedReason): Promise<void> {
     const now = Date.now()
     await this.sessions!.save({ ...record, revokedAt: now, revokedReason: reason })
 
@@ -453,6 +509,227 @@ export class AuthenticationModule implements AppModule {
       source: { moduleId: this.id, entity: 'session', entityId: record.userId },
       payload: { sessionId: record.id, userId: record.userId, reason },
       timestamp: now,
+    })
+  }
+
+  /**
+   * Refresca la autenticación con rotación completa del par (ADR-0009):
+   * sesión nueva + refresh token nuevo; la sesión anterior se revoca
+   * ('rotated') y el RT anterior queda consumido (lineage).
+   *
+   * Detección de reuso: presentar un RT ya consumido revoca la sesión
+   * asociada ('reuse-detected') y emite `auth:refresh-reuse-detected`.
+   */
+  async refresh(refreshTokenValue: string): Promise<LoginResult> {
+    if (!this.sessions || !this.refreshTokens || !this.events) throw new Error('Not Initialized')
+
+    const rtHash = await hashOpaqueToken(refreshTokenValue)
+    const rt = await this.refreshTokens.get(rtHash)
+    const now = Date.now()
+
+    if (!rt || rt.revokedAt !== undefined || now > rt.expiresAt) {
+      throw new InvalidRefreshTokenError()
+    }
+
+    // Reuso de token consumido ⇒ posible robo. Revocación de FAMILIA (OAuth
+    // BCP): seguimos el lineage de rotación hasta el descendiente más reciente
+    // y revocamos SU sesión — que es la que podría estar usando el atacante
+    // (o la del usuario legítimo; ante la duda, la familia completa cae).
+    if (rt.consumedAt !== undefined) {
+      let latest: RefreshTokenRecord = rt
+      const visited = new Set<string>([latest.id])
+      while (latest.rotatedToHash && !visited.has(latest.rotatedToHash)) {
+        const next = await this.refreshTokens.get(latest.rotatedToHash)
+        if (!next) break
+        visited.add(next.id)
+        latest = next
+      }
+
+      const liveSession = await this.sessions.get(latest.sessionId)
+      if (liveSession && liveSession.revokedAt === undefined) {
+        await this.revokeSession(liveSession, 'reuse-detected')
+      }
+
+      this.events.emit({
+        name: AUTH_EVENTS.REFRESH_REUSE_DETECTED,
+        category: 'domain',
+        source: { moduleId: this.id, entity: 'session', entityId: rt.userId },
+        payload: { userId: rt.userId, sessionId: latest.sessionId },
+        timestamp: now,
+      })
+      throw new RefreshTokenReuseError()
+    }
+
+    // La sesión asociada debe existir y no estar revocada (expirada está bien:
+    // refresh existe justamente para renovarla)
+    const oldSession = await this.sessions.get(rt.sessionId)
+    if (!oldSession || oldSession.revokedAt !== undefined) {
+      throw new InvalidRefreshTokenError()
+    }
+
+    // La cuenta debe seguir ACTIVE (suspendida/baneada pierde acceso ya)
+    const account = await this.directory.getUserAccount(rt.userId)
+    if (!account) throw new InvalidRefreshTokenError()
+    if (account.accountStatus !== 'ACTIVE') {
+      throw new AccountNotActiveError(account.accountStatus)
+    }
+
+    // Rotación completa: nuevo par
+    const token = generateOpaqueToken()
+    const sessionId = await hashOpaqueToken(token)
+    const issuedAt = now
+    const expiresAt = issuedAt + this.accessTokenTtlMs
+
+    const newSession: SessionRecord = {
+      id: sessionId,
+      userId: rt.userId,
+      deviceFingerprint: oldSession.deviceFingerprint,
+      issuedAt,
+      expiresAt,
+      lastSeenAt: issuedAt,
+      riskSnapshot: oldSession.riskSnapshot,
+    }
+    await this.sessions.save(newSession)
+
+    const newRefreshToken = generateOpaqueToken()
+    const newRtHash = await hashOpaqueToken(newRefreshToken)
+    await this.refreshTokens.save({
+      id: newRtHash,
+      userId: rt.userId,
+      sessionId,
+      issuedAt,
+      expiresAt: issuedAt + this.refreshTokenTtlMs,
+    })
+
+    // Lineage: RT viejo consumido; sesión vieja revocada
+    await this.refreshTokens.save({ ...rt, consumedAt: now, rotatedToHash: newRtHash })
+    await this.revokeSession(oldSession, 'rotated')
+
+    this.events.emit({
+      name: AUTH_EVENTS.TOKEN_REFRESHED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'session', entityId: rt.userId },
+      payload: { userId: rt.userId, sessionId },
+      timestamp: now,
+    })
+    this.events.emit({
+      name: AUTH_EVENTS.SESSION_ISSUED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'session', entityId: rt.userId },
+      payload: {
+        userId: rt.userId,
+        sessionId,
+        deviceFingerprint: newSession.deviceFingerprint,
+        expiresAt,
+      },
+      timestamp: now,
+    })
+
+    return {
+      userId: rt.userId,
+      session: { ...toSessionInfo(newSession), token },
+      refreshToken: newRefreshToken,
+    }
+  }
+
+  /**
+   * Solicita un reset de contraseña self-service (ADR-0009).
+   * Anti-enumeración: idéntica respuesta exista o no la cuenta; se genera y
+   * hashea el token en ambos caminos para igualar el trabajo criptográfico.
+   * Requiere `context.email`.
+   */
+  async requestPasswordReset(identifier: string): Promise<void> {
+    if (!this.resetTokens || !this.events) throw new Error('Not Initialized')
+    if (!this.emailDelivery) {
+      throw new Error(
+        "AuthenticationModule requiere 'context.email' (EmailDelivery) para el reset de contraseña. Ver docs/contracts/authentication.md"
+      )
+    }
+
+    const entry = await this.directory.lookupUser(identifier)
+
+    // Trabajo criptográfico en ambos caminos (mitigación parcial de timing)
+    const tokenValue = generateOpaqueToken()
+    const tokenHash = await hashOpaqueToken(tokenValue)
+    const now = Date.now()
+
+    if (entry) {
+      // Invalidar tokens de reset activos anteriores (single active token)
+      const all = await this.resetTokens.list()
+      for (const t of all) {
+        if (t.userId === entry.userId && !t.consumedAt && !t.invalidatedAt) {
+          await this.resetTokens.save({ ...t, invalidatedAt: now })
+        }
+      }
+
+      await this.resetTokens.save({
+        id: tokenHash,
+        userId: entry.userId,
+        createdAt: now,
+        expiresAt: now + this.resetTokenTtlMs,
+      })
+
+      await this.emailDelivery.send({
+        to: entry.email,
+        subject: 'Restablece tu contraseña en MorningStar',
+        body:
+          `Hola ${entry.userId},\n\n` +
+          `Recibimos una solicitud para restablecer tu contraseña. Usa el siguiente enlace:\n` +
+          `${PASSWORD_RESET_LINK_BASE}?token=${tokenValue}\n\n` +
+          `Este enlace es de un solo uso y expira en ${Math.round(this.resetTokenTtlMs / 3_600_000)} hora(s). ` +
+          `Si no solicitaste el cambio, ignora este email.\n\n— MorningStar`,
+      })
+    }
+
+    this.events.emit({
+      name: AUTH_EVENTS.PASSWORD_RESET_REQUESTED,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'credentials', entityId: entry?.userId },
+      payload: entry ? { userId: entry.userId } : {},
+      timestamp: Date.now(),
+    })
+  }
+
+  /**
+   * Consume un token de reset y establece la nueva contraseña (ADR-0009):
+   * single-use, expiración, invalidación por solicitudes nuevas. Revoca
+   * TODAS las sesiones del usuario (posible cuenta comprometida).
+   */
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    if (!this.credentials || !this.resetTokens || !this.events) throw new Error('Not Initialized')
+
+    const record = await this.resetTokens.get(await hashOpaqueToken(token))
+    if (!record) throw new InvalidResetTokenError()
+
+    const now = Date.now()
+    if (record.consumedAt !== undefined) throw new ResetTokenAlreadyUsedError()
+    if (record.invalidatedAt !== undefined) throw new ResetTokenInvalidatedError()
+    if (now > record.expiresAt) throw new ResetTokenExpiredError()
+
+    // Política ANTES de consumir: una contraseña inválida no quema el token
+    validatePassword(newPassword, this.passwordPolicy)
+
+    // Consumir antes de los efectos de dominio (single-use estricto)
+    await this.resetTokens.save({ ...record, consumedAt: now })
+
+    const existing = await this.credentials.get(record.userId)
+    await this.credentials.save({
+      id: record.userId,
+      passwordHash: await this.hasher.hash(newPassword),
+      failedAttempts: 0,
+      lockedUntil: undefined,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    })
+
+    const sessionsRevoked = await this.revokeUserSessions(record.userId, 'password-reset')
+
+    this.events.emit({
+      name: AUTH_EVENTS.PASSWORD_RESET,
+      category: 'domain',
+      source: { moduleId: this.id, entity: 'credentials', entityId: record.userId },
+      payload: { userId: record.userId, sessionsRevoked },
+      timestamp: Date.now(),
     })
   }
 
