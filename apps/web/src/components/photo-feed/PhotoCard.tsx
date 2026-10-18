@@ -13,6 +13,10 @@ export const PhotoCard = ({ photo, onDelete, onEdit }: PhotoCardProps) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Media huérfana (ADR-0004): metadata presente, binario perdido ⇒ la URI
+  // resuelta quedó vacía. Se muestra un placeholder en vez de un <img> roto.
+  const isOrphan = photo.media !== undefined && photo.url === '';
+
   useEffect(() => {
     if (isDeleting) {
       const timer = setTimeout(() => setIsDeleting(false), 3000);
@@ -28,15 +32,21 @@ export const PhotoCard = ({ photo, onDelete, onEdit }: PhotoCardProps) => {
   };
 
   const photoActions: ActionItem[] = [
-    {
-      label: 'Editar URL',
-      icon: (
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-        </svg>
-      ),
-      onClick: () => onEdit(photo)
-    },
+    // "Editar URL" solo tiene sentido en fotos por URL: en fotos con media el
+    // dominio lo rechaza explícitamente (limitación documentada, ADR-0004).
+    ...(photo.media
+      ? []
+      : [
+          {
+            label: 'Editar URL',
+            icon: (
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+              </svg>
+            ),
+            onClick: () => onEdit(photo)
+          } satisfies ActionItem
+        ]),
     {
       label: 'Eliminar',
       icon: (
@@ -56,16 +66,26 @@ export const PhotoCard = ({ photo, onDelete, onEdit }: PhotoCardProps) => {
       hover:border-white/10 hover:shadow-2xl hover:shadow-white/2
       ${isDeleting ? 'opacity-0 scale-90 blur-xl pointer-events-none' : 'opacity-100'}
     `}> 
-      {!isLoaded && <div className="w-full aspect-square bg-zinc-900 animate-pulse" />} 
+      {!isLoaded && !isOrphan && <div className="w-full aspect-square bg-zinc-900 animate-pulse" />} 
       <div className="absolute top-5 right-5 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 transform translate-y-2 group-hover:translate-y-0">
         <ActionMenu actions={photoActions} />
       </div>
-      <img 
-        src={photo.url} 
-        alt={`Photo ${photo.id}`}
-        onLoad={() => setIsLoaded(true)}
-        className={`w-full h-auto object-cover transition-all duration-600 var(--ease-premium) ${isLoaded ? 'opacity-100 blur-0 scale-100' : 'opacity-0 blur-md scale-105'} group-hover:scale-110`}
-      />
+      {isOrphan ? (
+        <div className="w-full aspect-square bg-zinc-900 flex flex-col items-center justify-center gap-3 text-zinc-500">
+          <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A1.5 1.5 0 0021.75 19.5V4.5A1.5 1.5 0 0020.25 3H3.75A1.5 1.5 0 002.25 4.5v15A1.5 1.5 0 003.75 21zm6.75-8.25h.008v.008h-.008v-.008z" />
+          </svg>
+          <p className="text-sm">Medio no disponible</p>
+          <p className="text-xs text-zinc-600">El archivo original se perdió</p>
+        </div>
+      ) : (
+        <img 
+          src={photo.url} 
+          alt={`Photo ${photo.id}`}
+          onLoad={() => setIsLoaded(true)}
+          className={`w-full h-auto object-cover transition-all duration-600 var(--ease-premium) ${isLoaded ? 'opacity-100 blur-0 scale-100' : 'opacity-0 blur-md scale-105'} group-hover:scale-110`}
+        />
+      )}
       <div className='absolute inset-0 bg-linear-to-b from-black/20 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none'></div>
     </div>
   );

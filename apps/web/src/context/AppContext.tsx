@@ -7,6 +7,7 @@ import { ModuleRegistry } from '@morningstar/core';
 import { InMemoryEventBus } from '@morningstar/core';
 import { LocalStorageAdapter } from '@morningstar/core';
 import { LocalStoragePersistenceAdapter } from '@morningstar/core';
+import { IndexedDbMediaStorage } from '@morningstar/core';
 import { RuntimeLoggerModule } from '@morningstar/runtime-logger';
 import { PhotoFeedModule } from '@morningstar/photo-feed';
 import type { CoreEventMap } from '@morningstar/core';
@@ -22,6 +23,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [instance, setInstance] = useState<AppContextType | null>(null);
 
   useEffect(() => {
+    // Binarios en IndexedDB (ADR-0004): durable en navegador, sobrevive
+    // recargas. Las blob URLs se revocan al desmontar (dispose).
+    const media = new IndexedDbMediaStorage('morningstar-media');
+
     const initSystem = async () => {
       // 1. Configuración de Infraestructura
       const eventBus = new InMemoryEventBus<CoreEventMap>();
@@ -34,6 +39,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         events: eventBus,
         storage,
         persistence,
+        media,
         permission: { has: () => true, request: async () => true },
         logger: console,
         config: { environment: 'development' as const,
@@ -61,6 +67,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     initSystem().catch(console.error);
+
+    return () => {
+      // Revoca las blob URLs cacheadas por la sesión
+      media.dispose();
+    };
   }, []);
 
   if (!instance) {
