@@ -8,6 +8,7 @@
   "exports": {
     ".": {
       "types": "./index.ts",
+      "development": "./index.ts",
       "default": "./dist/index.js"
     }
   },

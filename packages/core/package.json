@@ -7,10 +7,12 @@
   "exports": {
     ".": {
       "types": "./index.ts",
+      "development": "./index.ts",
       "default": "./dist/index.js"
     },
     "./testing": {
       "types": "./testing/index.ts",
+      "development": "./testing/index.ts",
       "default": "./dist/testing/index.js"
     }
   }

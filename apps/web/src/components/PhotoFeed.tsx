@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { PhotoCard } from './photo-feed/PhotoCard';
 import type { Photo } from '@morningstar/photo-feed';
 import { PHOTO_MEDIA_POLICY } from '@morningstar/photo-feed';
@@ -15,6 +16,7 @@ const formatBytes = (bytes: number): string => {
 
 export const PhotoFeed: React.FC = () => {
   const { photoFeed, events } = useApp();
+  const { actor, user, logout } = useAuth();
   const [photos, setPhotos] = useState<Photo[]>([]);
 
   // Modal de alta
@@ -89,7 +91,7 @@ export const PhotoFeed: React.FC = () => {
     try {
       if (addMode === 'url') {
         if (!newUrl.trim()) return;
-        await photoFeed.addPhoto(newUrl.trim());
+        await photoFeed.addPhoto(newUrl.trim(), actor ?? undefined);
         setNewUrl('');
       } else {
         if (!selectedFile) return;
@@ -98,12 +100,14 @@ export const PhotoFeed: React.FC = () => {
         await photoFeed.addPhotoFromFile({
           data: new Uint8Array(buffer),
           mimeType: selectedFile.type,
-        });
+        }, actor ?? undefined);
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
       }
       setIsAdding(false);
     } catch (e) {
+      // Incluye PermissionRequiredError/PermissionDeniedError (ADR-0012):
+      // el mensaje del error de dominio se muestra tal cual.
       setAddError(e instanceof Error ? e.message : 'Error desconocido');
     } finally {
       setIsUploading(false);
@@ -114,7 +118,7 @@ export const PhotoFeed: React.FC = () => {
     setEditError(null);
     if (photoToEdit && tempUrl && tempUrl !== photoToEdit.url) {
       try {
-        await photoFeed.editPhoto(photoToEdit.id, { url: tempUrl });
+        await photoFeed.editPhoto(photoToEdit.id, { url: tempUrl }, actor ?? undefined);
         setPhotoToEdit(null);
       } catch (e) {
         setEditError(e instanceof Error ? e.message : 'Error desconocido');
@@ -126,7 +130,7 @@ export const PhotoFeed: React.FC = () => {
     setDeleteError(null);
     if (photoToDelete) {
       try {
-        await photoFeed.removePhoto(photoToDelete.id);
+        await photoFeed.removePhoto(photoToDelete.id, actor ?? undefined);
         setPhotoToDelete(null);
       } catch (e) {
         setDeleteError(e instanceof Error ? e.message : 'Error desconocido');
@@ -143,7 +147,16 @@ export const PhotoFeed: React.FC = () => {
           <h1 className="text-5xl font-extrabold tracking-tighter text-white">MorningStar</h1>
           <p className="text-slate-500 mt-2 font-light italic">Digital Archive v{photoFeed.version}</p>
         </div>
-        <button onClick={() => setIsAdding(true)} className="bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-slate-200 active:scale-95 active:animate-button-press transition-all duration-300 hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)]">UPLOAD</button>
+        <div className="flex items-center gap-4">
+          {user && (
+            <div className="text-right">
+              <p className="text-white text-sm font-medium" data-testid="current-user">{user.displayName}</p>
+              <p className="text-zinc-500 text-xs">@{user.username}</p>
+            </div>
+          )}
+          <button onClick={() => setIsAdding(true)} className="bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-slate-200 active:scale-95 active:animate-button-press transition-all duration-300 hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)]">UPLOAD</button>
+          <button onClick={() => void logout()} aria-label="Cerrar sesión" className="bg-white/5 text-zinc-300 text-sm px-5 py-3 rounded-full hover:bg-white/10 transition-colors">Salir</button>
+        </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-8 pb-20">

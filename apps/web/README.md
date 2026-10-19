@@ -1,73 +1,36 @@
-# React + TypeScript + Vite
+# MorningStar Web
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend React + Vite + Tailwind de MorningStar. Consume los paquetes del
+monorepo por **fuente** (condición de exports `development`, ADR-0013): no
+hace falta compilar los paquetes antes de `web:dev`.
 
-Currently, two official plugins are available:
+## Scripts (desde la raíz del monorepo)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm run web:dev        # servidor de desarrollo
+npm run web:build      # type-check (tsc -b) + build de producción
+npm run web:preview    # previsualizar el build
+npm test               # suite completa (proyecto vitest 'web': jsdom + Testing Library)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Arquitectura
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `context/AppContext.tsx` — composición de la plataforma: infraestructura
+  (adapters), módulos (photo-feed, identity, authentication, authorization) y
+  puertos cruzados. Incluye `authorizer` ⇒ PhotoFeed opera fail-closed con
+  `ActorContext` (ADR-0012/0013).
+- `context/AuthContext.tsx` — sesión del navegador: login/registro/MFA,
+  restauración con refresh token (localStorage — deuda httpOnly cookie,
+  ADR-0013) y `actor` para los comandos.
+- `App.tsx` — AuthGate: `loading | anonymous → AuthScreen | authenticated → PhotoFeed`.
+- `components/auth/AuthScreen.tsx` — máquina de estados `login | register | mfa | pending`.
+- `components/auth/DevOutbox.tsx` — panel de desarrollo con los emails
+  "enviados" por `InMemoryEmailDelivery` (solo `environment=development`).
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## Tests
+
+Los tests web (`src/test/`) son de **integración real**: cablean los módulos
+de la plataforma con adaptadores InMemory sobre jsdom y ejercitan la UI de
+punta a punta. Setup en `src/test/setup.ts` (jest-dom, fake-indexeddb,
+polyfills de `crypto.subtle` y object URLs). Type-check de tests con
+`tsconfig.test.json` (separado del de la app).

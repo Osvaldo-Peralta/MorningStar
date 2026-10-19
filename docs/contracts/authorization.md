@@ -138,8 +138,8 @@ Ejemplo de referencia de cableado: `bootstrap.ts`.
 - Enforcement loop de condiciones (`require-mfa`/`require-step-up`): con
   backend/Fase 8 (photo-feed trata CONDITIONAL como denegación con
   condiciones expuestas).
-- Enforcement en la web: junto a la UI de autenticación (la web aún no
-  inyecta `authorizer`).
+- ~~Enforcement en la web~~: **cerrada en 8a** — la web cablea `authorizer` y
+  propaga `ActorContext` en los comandos de PhotoFeed (ADR-0013).
 - Cache del ensamblado de contexto para hot-paths.
 - Políticas dinámicas por comunidad: Fase 6 (el modelo lo admite vía
   `extraRoles` + scoping).

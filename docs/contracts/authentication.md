@@ -216,5 +216,7 @@ para audit, no se borran).
 - GC de sesiones expiradas/revocadas, RT consumidos, challenges y tokens de
   email/reset pendientes (un único job futuro).
 - Cambio de email con re-verificación: deuda de identity.
-- QR de enrolamiento: la URI `otpauth://` está lista; el render del QR es
-  cliente (UI de login/MFA, próxima candidata).
+- UI web (ADR-0013): login/registro/MFA-challenge y sesión persistente
+  implementados (8a). Pendientes para 8b: gestión MFA con QR de enrolamiento,
+  UI de reset de contraseña y pantalla "tus dispositivos" (listSessions +
+  logout por dispositivo).

@@ -374,7 +374,7 @@ Adaptadores:
 
 | Adaptador | Paquete | Comportamiento |
 |---|---|---|
-| `InMemoryEmailDelivery` | core | acumula en `outbox` inspeccionable (dev/tests/bootstrap); `clear()` lo vacía |
+| `InMemoryEmailDelivery` | core | acumula en `outbox` inspeccionable (dev/tests/bootstrap); `subscribe(listener)` para UIs reactivas (ADR-0013); `clear()` lo vacía |
 | Proveedor real (SMTP/SES/…) | por decidir (backend, Fase 3+) | producción |
 
 ### 3.8 Puerto `Authorizer` + `ActorContext` (ADR-0012)
