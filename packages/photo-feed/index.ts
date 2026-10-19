@@ -4,6 +4,7 @@
 export * from './PhotoFeedModule.js'
 export * from './PhotoEventMap.js'
 export * from './events.js'
+export * from './errors.js'
 export * from './domain/Photo.js'
 export * from './domain/PhotoRecord.js'
 export * from './domain/PhotoChanges.js'

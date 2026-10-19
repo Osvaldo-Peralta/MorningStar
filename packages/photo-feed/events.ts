@@ -18,6 +18,8 @@ export interface PhotoAddedPayload {
   readonly addedAt: number
   /** Campo aditivo v1 (ADR-0001): presente solo en fotos subidas como archivo. */
   readonly media?: MediaRef
+  /** Campo aditivo v1 (ADR-0012): dueño de la foto; ausente en flujos legacy. */
+  readonly ownerId?: string
 }
 
 export interface PhotoEditedPayload {

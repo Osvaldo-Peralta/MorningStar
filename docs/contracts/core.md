@@ -187,6 +187,7 @@ export interface CoreContext<
   readonly persistence?: PersistenceProvider  // ADR-0003 (miembro opcional)
   readonly media?: MediaStorage               // ADR-0004 (miembro opcional)
   readonly email?: EmailDelivery              // ADR-0006 (miembro opcional)
+  readonly authorizer?: Authorizer            // ADR-0012 (miembro opcional)
   readonly permission: Permissions
   readonly logger: Logger
   readonly config: CoreConfig
@@ -375,6 +376,33 @@ Adaptadores:
 |---|---|---|
 | `InMemoryEmailDelivery` | core | acumula en `outbox` inspeccionable (dev/tests/bootstrap); `clear()` lo vacía |
 | Proveedor real (SMTP/SES/…) | por decidir (backend, Fase 3+) | producción |
+
+### 3.8 Puerto `Authorizer` + `ActorContext` (ADR-0012)
+
+Autorización de negocio para cualquier módulo de dominio, sin importar
+`@morningstar/authorization` (que satisface el puerto estructuralmente).
+
+```ts
+export interface Authorizer {
+  authorize(
+    request: { permission: string; resource?: { type: string; id?: string; ownerId?: string } },
+    sessionToken: string
+  ): Promise<{ decision: 'ALLOW' | 'DENY' | 'CONDITIONAL'; reason: string; conditions?: readonly string[] }>
+}
+
+export interface ActorContext {
+  readonly sessionToken: string
+  readonly userId: string
+}
+```
+
+Reglas del contrato:
+- `CoreContext.authorizer` es **opcional**: los módulos con enforcement
+  (photo-feed desde 7b) operan en modo fail-closed cuando está presente —
+  toda llamada exige `ActorContext` y las decisiones DENY/CONDITIONAL
+  bloquean la operación sin efectos colaterales.
+- **Frontera de confianza**: `ActorContext` lo construye la composición desde
+  una sesión validada, nunca desde claims crudos del cliente.
 
 ## 4. Utilidades de test — `@morningstar/core/testing`
 

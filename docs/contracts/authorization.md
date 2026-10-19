@@ -132,10 +132,14 @@ Ejemplo de referencia de cableado: `bootstrap.ts`.
 
 ## 8. Deuda conocida
 
-- **Enforcement en módulos de dominio** (photo-feed etc.) vía puerto
-  `PermissionChecker` inyectado: Iteración 7b.
+- ~~Enforcement en módulos de dominio~~: **cerrada para photo-feed** en la
+  Iteración 7b (ADR-0012, puerto `Authorizer` de core). Los módulos futuros
+  nacerán con enforcement.
 - Enforcement loop de condiciones (`require-mfa`/`require-step-up`): con
-  backend/Fase 8.
+  backend/Fase 8 (photo-feed trata CONDITIONAL como denegación con
+  condiciones expuestas).
+- Enforcement en la web: junto a la UI de autenticación (la web aún no
+  inyecta `authorizer`).
 - Cache del ensamblado de contexto para hot-paths.
 - Políticas dinámicas por comunidad: Fase 6 (el modelo lo admite vía
   `extraRoles` + scoping).

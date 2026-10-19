@@ -10,16 +10,16 @@ export class PhotoFeedService {
 
   /* --- Commands --- */
 
-  addPhoto(url: string): Photo {
-    const photo = new Photo(nanoid(), url)
+  addPhoto(url: string, ownerId?: string): Photo {
+    const photo = new Photo(nanoid(), url, undefined, ownerId)
 
     this.photos.push(photo)
     return photo
   }
 
   /** Crea un agregado desde un archivo subido (ADR-0004): fuente media + URI de sesión. */
-  addPhotoFromMedia(resolvedUri: string, media: MediaRef): Photo {
-    const photo = new Photo(nanoid(), resolvedUri, media)
+  addPhotoFromMedia(resolvedUri: string, media: MediaRef, ownerId?: string): Photo {
+    const photo = new Photo(nanoid(), resolvedUri, media, ownerId)
 
     this.photos.push(photo)
     return photo

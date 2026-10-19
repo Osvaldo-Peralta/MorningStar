@@ -2,6 +2,11 @@
 // Punto de entrada del backend (Node ESM).
 // Consume únicamente las APIs públicas de cada paquete (contratos),
 // nunca rutas internas: `@morningstar/*`.
+//
+// Orden de composición (ADR-0012):
+// 1. infraestructura (adapters/bus)  2. instancias de módulos
+// 3. CoreContext (incluye authorizer)  4. registro/init determinista
+// 5. demos de cada fase del roadmap.
 import type { CoreContext, CoreEventMap } from '@morningstar/core'
 import {
   InMemoryEmailDelivery,
@@ -22,71 +27,18 @@ import {
 import { AuthorizationModule } from '@morningstar/authorization'
 
 async function bootstrap() {
+  // 1. Infraestructura
   const eventBus = new InMemoryEventBus<CoreEventMap>()
-  // Adaptador volátil: en Node no existe `localStorage`.
-  // Cuando llegue la Fase 1 (persistencia remota) se sustituirá
-  // por el adaptador correspondiente sin tocar el dominio.
   const storage = new InMemoryStorageAdapter('v0.3.0_')
+  const persistence = new InMemoryPersistenceAdapter()
   const emailDelivery = new InMemoryEmailDelivery()
 
-  const context: CoreContext<CoreEventMap> = {
-    events: eventBus,
-    storage,                                        // Se inyecta el adaptador
-    // Persistencia con identidad estable (ADR-0003). En el backend de
-    // producción será el adaptador remoto; aquí, volátil para la demo.
-    persistence: new InMemoryPersistenceAdapter(),
-    // Entrega de emails: en dev/test el outbox es inspeccionable (ADR-0006)
-    email: emailDelivery,
-    permission: {
-      has: (permission) => true,
-      request: async (permission) => true
-    },
-    logger: console,
-    config: {
-      environment: 'development',
-      version: '0.3.0',
-    },
-  }
-
-  const registry = new ModuleRegistry(context)
+  // 2. Módulos (instancias primero: la composición los referencia entre sí
+  //    mediante puertos — ningún módulo importa a otro feature, ADR-0002)
   const runtimeLogger = new RuntimeLoggerModule()
-
-  // Inicializar el Logger antes del registro
-  await runtimeLogger.init(context)
-
-  // A partir de aqui el orden sera determinista
-  registry.register(runtimeLogger)          // Emitira REGISTERED (runtimeLogger)
-  await registry.init(runtimeLogger.id)     // Emitira INITIALIZED (runtimeLogger)
-  await registry.activate(runtimeLogger.id) // Emitira ACTIVATED (runtimeLogger)
-
   const photoFeed = new PhotoFeedModule()
-  registry.register(photoFeed)              // Emitira REGISTERED (photoFeed)
-  await registry.init(photoFeed.id)
-  await registry.activate(photoFeed.id)
-
-  // Identity (Fase 3): ciclo completo registro → verificación → ACTIVE
   const identity = new IdentityModule()
-  registry.register(identity)
-  await registry.init(identity.id)
-  await registry.activate(identity.id)
 
-  const user = await identity.registerUser({
-    username: 'OsvaldoDev',
-    email: 'osvaldo@morningstar.dev',
-    displayName: 'Osvaldo Peralta',
-  })
-  await identity.requestEmailVerification(user.id)
-
-  // Dev/demo: extraemos el token del outbox del adaptador InMemory
-  // (un usuario real lo recibiría por email y abriría el enlace)
-  const verificationEmail = emailDelivery.outbox.at(-1)!
-  const token = verificationEmail.body.match(/token=([A-Za-z0-9_-]+)/)![1]
-  const verifiedUser = await identity.confirmEmail(token)
-  console.log('User Verified: ', verifiedUser.accountStatus)
-
-  // Authentication (Fase 4 / Iteración 6a): credenciales + login.
-  // La composición cablea el UserDirectoryPort con identity (ADR-0002/0007):
-  // authentication NO importa identity.
   const authentication = new AuthenticationModule({
     // Demo: iteraciones reducidas para un bootstrap rápido; en producción se
     // usa el default OWASP (600k).
@@ -108,69 +60,11 @@ async function bootstrap() {
       },
     },
   })
-  registry.register(authentication)
-  await registry.init(authentication.id)
-  await registry.activate(authentication.id)
 
-  await authentication.setPassword(verifiedUser.id, 'SecurePass123!')
-  const loginOk = await authentication.login(
-    'osvaldodev',
-    'SecurePass123!',
-    { fingerprint: 'bootstrap-demo-device' }
-  )
-  console.log('Login OK (sesión): ', {
-    userId: loginOk.userId,
-    sessionId: loginOk.session.sessionId.slice(0, 12) + '…',
-    expiresAt: new Date(loginOk.session.expiresAt).toISOString(),
-  })
-
-  const sessionInfo = await authentication.validateSession(loginOk.session.token)
-  console.log('Sesión válida: ', sessionInfo?.deviceFingerprint)
-
-  // Refresh con rotación completa (ADR-0009): par nuevo, anterior revocado
-  const refreshed = await authentication.refresh(loginOk.refreshToken)
-  console.log('Refresh OK: ', {
-    nuevaSesión: refreshed.session.sessionId.slice(0, 12) + '…',
-    anteriorRevocada: (await authentication.validateSession(loginOk.session.token)) === null,
-  })
-
-  try {
-    await authentication.login('osvaldo@morningstar.dev', 'wrong-password')
-  } catch (err) {
-    console.log('Login rechazado (esperado): ', (err as Error).name)
-  }
-
-  await authentication.logout(refreshed.session.token)
-  console.log('Logout: ', (await authentication.validateSession(refreshed.session.token)) === null)
-
-  // MFA (Fase 4 / 6d): enrolamiento TOTP + login en dos pasos
-  const mfaEnrollment = await authentication.enrollMfa(verifiedUser.id)
-  const mfaCode = await new TotpService().generateCode(mfaEnrollment.secret)
-  const mfaActivation = await authentication.confirmMfa(verifiedUser.id, mfaCode)
-  console.log('MFA activo. Backup codes (entrega única): ', mfaActivation.backupCodes.length)
-
-  try {
-    await authentication.login('osvaldodev', 'SecurePass123!', { fingerprint: 'bootstrap-demo-device' })
-    console.log('Inesperado: login sin segundo factor')
-  } catch (err) {
-    if (err instanceof MfaRequiredError) {
-      // Segundo paso con backup code (determinista; el TOTP depende de la ventana de 30 s)
-      const mfaLogin = await authentication.completeMfaLogin(
-        err.mfaToken,
-        mfaActivation.backupCodes[0]!
-      )
-      console.log('Login MFA OK (backup code), sesión: ', mfaLogin.session.sessionId.slice(0, 12) + '…')
-      await authentication.logout(mfaLogin.session.token)
-    }
-  }
-
-  // Authorization (Fase 5): evaluación pura ALLOW/DENY/CONDITIONAL.
-  // La composición cablea los puertos con authentication e identity:
-  // authorization NO los importa (ADR-0002/0011).
   const authorization = new AuthorizationModule({
     sessionValidator: {
-      validateSession: async (token) => {
-        const session = await authentication.validateSession(token)
+      validateSession: async (sessionToken) => {
+        const session = await authentication.validateSession(sessionToken)
         return session
           ? {
               userId: session.userId,
@@ -196,26 +90,107 @@ async function bootstrap() {
       },
     },
   })
+
+  // 3. CoreContext: capabilities para todos los módulos
+  const context: CoreContext<CoreEventMap> = {
+    events: eventBus,
+    storage,
+    persistence,
+    email: emailDelivery,
+    // Enforcement de autorización en photo-feed (fail-closed con actor)
+    authorizer: authorization,
+    permission: {
+      has: (permission) => true,
+      request: async (permission) => true,
+    },
+    logger: console,
+    config: {
+      environment: 'development',
+      version: '0.3.0',
+    },
+  }
+
+  // 4. Registro e inicialización determinista
+  const registry = new ModuleRegistry(context)
+
+  await runtimeLogger.init(context) // El logger escucha antes del registro
+  registry.register(runtimeLogger)
+  await registry.init(runtimeLogger.id)
+  await registry.activate(runtimeLogger.id)
+
+  registry.register(photoFeed)
+  await registry.init(photoFeed.id)
+  await registry.activate(photoFeed.id)
+
+  registry.register(identity)
+  await registry.init(identity.id)
+  await registry.activate(identity.id)
+
+  registry.register(authentication)
+  await registry.init(authentication.id)
+  await registry.activate(authentication.id)
+
   registry.register(authorization)
   await registry.init(authorization.id)
   await registry.activate(authorization.id)
 
-  // Sesión vigente para la demo (cuenta con MFA: completamos el segundo paso)
+  // 5a. Identity (Fase 3): registro → verificación de email → ACTIVE
+  const user = await identity.registerUser({
+    username: 'OsvaldoDev',
+    email: 'osvaldo@morningstar.dev',
+    displayName: 'Osvaldo Peralta',
+  })
+  await identity.requestEmailVerification(user.id)
+  const verificationEmail = emailDelivery.outbox.at(-1)!
+  const verificationToken = verificationEmail.body.match(/token=([A-Za-z0-9_-]+)/)![1]
+  const verifiedUser = await identity.confirmEmail(verificationToken)
+  console.log('User Verified:', verifiedUser.accountStatus)
+
+  // 5b. Authentication (Fase 4): credenciales → login → refresh → MFA
+  await authentication.setPassword(verifiedUser.id, 'SecurePass123!')
+  const loginOk = await authentication.login('osvaldodev', 'SecurePass123!', {
+    fingerprint: 'bootstrap-demo-device',
+  })
+  console.log('Login OK (sesión):', loginOk.session.sessionId.slice(0, 12) + '…')
+
+  const refreshed = await authentication.refresh(loginOk.refreshToken)
+  const anteriorRevocada = (await authentication.validateSession(loginOk.session.token)) === null
+  console.log('Refresh OK (rotación, anterior revocada):', anteriorRevocada)
+
+  const mfaEnrollment = await authentication.enrollMfa(verifiedUser.id)
+  const mfaCode = await new TotpService().generateCode(mfaEnrollment.secret)
+  const mfaActivation = await authentication.confirmMfa(verifiedUser.id, mfaCode)
+  console.log('MFA activo. Backup codes (entrega única):', mfaActivation.backupCodes.length)
+
+  // Sesión vigente para las demos (login en dos pasos por MFA)
   let sessionToken = ''
   try {
-    await authentication.login('osvaldodev', 'SecurePass123!', { fingerprint: 'bootstrap-demo-device' })
+    await authentication.login('osvaldodev', 'SecurePass123!', {
+      fingerprint: 'bootstrap-demo-device',
+    })
   } catch (err) {
     if (err instanceof MfaRequiredError) {
-      const result = await authentication.completeMfaLogin(err.mfaToken, mfaActivation.backupCodes[1]!)
+      const result = await authentication.completeMfaLogin(
+        err.mfaToken,
+        mfaActivation.backupCodes[0]!
+      )
       sessionToken = result.session.token
+      console.log('Login MFA OK (backup code), sesión:', result.session.sessionId.slice(0, 12) + '…')
     }
   }
 
-  const ownPhoto = { permission: 'photo:delete', resource: { type: 'photo', id: 'p1', ownerId: verifiedUser.id } }
-  const foreignPhoto = { permission: 'photo:delete', resource: { type: 'photo', id: 'p2', ownerId: 'otro-usuario' } }
-
-  console.log('member  → borrar foto propia: ', (await authorization.authorize(ownPhoto, sessionToken)).decision)
-  console.log('member  → borrar foto ajena:  ', (await authorization.authorize(foreignPhoto, sessionToken)).decision)
+  // 5c. Authorization (Fase 5): decisiones puras ALLOW/DENY/CONDITIONAL
+  const actor = { sessionToken, userId: verifiedUser.id }
+  const ownPhoto = {
+    permission: 'photo:delete',
+    resource: { type: 'photo', id: 'p1', ownerId: verifiedUser.id },
+  }
+  const foreignPhoto = {
+    permission: 'photo:delete',
+    resource: { type: 'photo', id: 'p2', ownerId: 'otro-usuario' },
+  }
+  console.log('member → borrar foto propia: ', (await authorization.authorize(ownPhoto, sessionToken)).decision)
+  console.log('member → borrar foto ajena:  ', (await authorization.authorize(foreignPhoto, sessionToken)).decision)
 
   await authorization.assignRoles(verifiedUser.id, ['member', 'moderator'])
   console.log('moderator → borrar foto ajena:', (await authorization.authorize(foreignPhoto, sessionToken)).decision)
@@ -224,10 +199,22 @@ async function bootstrap() {
   const sensitive = await authorization.authorize({ permission: 'account:delete' }, sessionToken)
   console.log('admin → account:delete:       ', sensitive.decision, sensitive.conditions ?? [])
 
-  await photoFeed.addPhoto('https://example.com/photo1.jpg')
-  await photoFeed.addPhoto('https://example.com/photo2.jpg')
+  // 5d. PhotoFeed con enforcement (7b): operaciones con actor y ownerId
+  await photoFeed.addPhoto('https://example.com/photo1.jpg', actor)
+  await photoFeed.addPhoto('https://example.com/photo2.jpg', actor)
+  const [firstPhoto] = photoFeed.listEntries()
+  console.log('Photo con owner:', { id: firstPhoto.id.slice(0, 8) + '…', ownerId: firstPhoto.ownerId?.slice(0, 8) + '…' })
 
-  console.log('Photos Initialized: ', photoFeed.listEntries())
+  await photoFeed.editPhoto(firstPhoto.id, { url: 'https://example.com/photo1-edit.jpg' }, actor)
+  console.log('Edit de foto propia (member, -own): ALLOW')
+
+  try {
+    await photoFeed.addPhoto('https://example.com/anonima.jpg') // sin actor
+  } catch (err) {
+    console.log('Operación sin actor rechazada (fail-closed):', (err as Error).name)
+  }
+
+  console.log('Photos Initialized:', photoFeed.listEntries().length)
 }
 
 bootstrap().catch(err => {

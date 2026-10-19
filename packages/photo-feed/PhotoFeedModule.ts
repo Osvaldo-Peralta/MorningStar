@@ -1,7 +1,9 @@
 // modules/photo-feed/PhotoFeedModule.ts
 import { ModuleState, toMediaRef } from '@morningstar/core'
 import type {
+  ActorContext,
   AppModule,
+  Authorizer,
   CoreContext,
   DomainEvent,
   MediaStorage,
@@ -14,6 +16,7 @@ import type { PhotoAddedPayload, PhotoEditedPayload } from './events.js'
 import { Photo } from './domain/Photo.js'
 import type { PhotoRecord } from './domain/PhotoRecord.js'
 import { validatePhotoMedia, type PhotoMediaInput } from './domain/mediaPolicy.js'
+import { PermissionDeniedError, PermissionRequiredError } from './errors.js'
 
 /** Namespace del repositorio (ADR-0002/0003: `<modulo>:<recurso>`). */
 const REPO_NAMESPACE = 'photo-feed:photos'
@@ -23,12 +26,13 @@ const LEGACY_STORAGE_KEY = 'photo-feed:data'
 
 export class PhotoFeedModule implements AppModule {
   readonly id = 'photo-feed'
-  readonly version = '0.3.0'
+  readonly version = '0.4.0'
 
   private service?: PhotoFeedService
   private repository?: Repository<PhotoRecord>
   private storage?: CoreContext['storage']
   private media?: MediaStorage
+  private authorizer?: Authorizer
   private events?: CoreContext['events']
 
   // Se mantiene el estado inicial requerido por la interfaz AppModule
@@ -47,6 +51,7 @@ export class PhotoFeedModule implements AppModule {
     this.repository = context.persistence.repository<PhotoRecord>(REPO_NAMESPACE)
     this.storage = context.storage
     this.media = context.media   // opcional: solo lo requiere addPhotoFromFile
+    this.authorizer = context.authorizer // opcional: activa el enforcement (ADR-0012)
     this.events = context.events
 
     // 1. Migración única del esquema legacy (URLs en Storage) al repositorio
@@ -99,16 +104,52 @@ export class PhotoFeedModule implements AppModule {
     this.events = undefined
     this.storage = undefined
     this.media = undefined
+    this.authorizer = undefined
     this.repository = undefined   // Limpieza completa de referencias
   }
 
+  /**
+   * Enforcement de autorización (ADR-0012), fail-closed:
+   * - Sin `authorizer` en el contexto ⇒ comportamiento local actual.
+   * - Con `authorizer` y sin actor ⇒ `PermissionRequiredError` (no existen
+   *   operaciones anónimas con autorización activa).
+   * - DENY o CONDITIONAL ⇒ `PermissionDeniedError` ANTES de tocar el dominio
+   *   (cero efectos colaterales). CONDITIONAL se trata como denegación: el
+   *   loop de cumplimiento de condiciones pertenece al composition layer.
+   */
+  private async checkPermission(
+    permission: string,
+    resource: { type: string; id?: string; ownerId?: string } | undefined,
+    actor?: ActorContext
+  ): Promise<void> {
+    if (!this.authorizer) return
+    if (!actor) throw new PermissionRequiredError(permission)
+
+    const decision = await this.authorizer.authorize(
+      resource ? { permission, resource } : { permission },
+      actor.sessionToken
+    )
+
+    if (decision.decision === 'ALLOW') return
+
+    throw new PermissionDeniedError(
+      permission,
+      decision.decision as 'DENY' | 'CONDITIONAL',
+      decision.reason,
+      decision.conditions
+    )
+  }
+
   /** API pública del módulo */
-  async addPhoto(url: string): Promise<void> {
+  async addPhoto(url: string, actor?: ActorContext): Promise<void> {
     if (!this.service || !this.events || !this.repository) throw new Error('Not Initialized')
 
     if(!url || !url.startsWith('http')) throw new Error('Invalid photo URL')
 
-    const photo = this.service.addPhoto(url)
+    // Enforcement antes de cualquier efecto (ADR-0012)
+    await this.checkPermission('photo:create', undefined, actor)
+
+    const photo = this.service.addPhoto(url, actor?.userId)
     await this.repository.save(photo.toRecord())
 
     this.events.emit({
@@ -118,7 +159,8 @@ export class PhotoFeedModule implements AppModule {
       payload: {
         photoId: photo.id,
         url: photo.url,
-        addedAt: photo.updatedAt
+        addedAt: photo.updatedAt,
+        ownerId: photo.ownerId
       },
       timestamp: Date.now()
     })
@@ -132,7 +174,7 @@ export class PhotoFeedModule implements AppModule {
    * Requiere `context.media`; lanza errores descriptivos de validación
    * (tipo MIME o tamaño fuera de política) sin efectos colaterales.
    */
-  async addPhotoFromFile(input: PhotoMediaInput): Promise<void> {
+  async addPhotoFromFile(input: PhotoMediaInput, actor?: ActorContext): Promise<void> {
     if (!this.service || !this.events || !this.repository) throw new Error('Not Initialized')
     if (!this.media) {
       throw new Error(
@@ -143,11 +185,14 @@ export class PhotoFeedModule implements AppModule {
     // Validación de negocio en el dominio: si falla, no se toca infraestructura
     validatePhotoMedia(input)
 
+    // Enforcement antes de almacenar binarios (ADR-0012)
+    await this.checkPermission('photo:create', undefined, actor)
+
     const object = await this.media.put(input.data, input.mimeType)
     const media = toMediaRef(object)
     const uri = (await this.media.getUri(object.id)) ?? ''
 
-    const photo = this.service.addPhotoFromMedia(uri, media)
+    const photo = this.service.addPhotoFromMedia(uri, media, actor?.userId)
     await this.repository.save(photo.toRecord())
 
     this.events.emit({
@@ -158,14 +203,23 @@ export class PhotoFeedModule implements AppModule {
         photoId: photo.id,
         url: uri,        // URI de sesión (efímera); los consumidores durables usan payload.media
         addedAt: photo.updatedAt,
-        media            // campo aditivo v1 (ADR-0001)
+        media,           // campo aditivo v1 (ADR-0001)
+        ownerId: photo.ownerId
       },
       timestamp: Date.now()
     })
   }
 
-  async editPhoto(photoId: string, input: EditPhotoInput): Promise<void> {
+  async editPhoto(photoId: string, input: EditPhotoInput, actor?: ActorContext): Promise<void> {
     if(!this.service || !this.events || !this.repository) throw new Error('Not Initialized')
+
+    // Enforcement con el recurso (ownerId cuando se conoce) ANTES del dominio
+    const existing = this.service.getPhotoById(photoId)
+    await this.checkPermission(
+      'photo:edit',
+      { type: 'photo', id: photoId, ownerId: existing?.ownerId },
+      actor
+    )
 
     const  { updatedPhoto, changes } = this.service.editPhoto(photoId, input)
 
@@ -195,11 +249,19 @@ export class PhotoFeedModule implements AppModule {
     this.events.emit(event)
   }
 
-  async removePhoto(photoId: string): Promise<void> {
+  async removePhoto(photoId: string, actor?: ActorContext): Promise<void> {
     if(!this.service || !this.events || !this.repository) throw new Error('Not Initialized')
-    
+
+    // 0. Enforcement con el recurso ANTES del dominio (ADR-0012)
+    const existing = this.service.getPhotoById(photoId)
+    await this.checkPermission(
+      'photo:delete',
+      { type: 'photo', id: photoId, ownerId: existing?.ownerId },
+      actor
+    )
+
     // 1. Rescatamos la referencia al binario antes de eliminar el agregado
-    const target = this.service.getPhotoById(photoId)
+    const target = existing
     // 2. Ejecutamos la eliminación en dominio
     this.service.removePhoto(photoId)
     // 3. Sincronizamos con el repositorio

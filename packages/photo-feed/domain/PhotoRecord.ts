@@ -17,6 +17,8 @@ import type { MediaRef, PersistedRecord } from '@morningstar/core'
 export interface PhotoRecord extends PersistedRecord {
   readonly url?: string
   readonly media?: MediaRef
+  /** Dueño de la foto (userId de identity). Ausente en fotos legacy (ADR-0012). */
+  readonly ownerId?: string
   readonly createdAt: number
   readonly updatedAt: number
 }

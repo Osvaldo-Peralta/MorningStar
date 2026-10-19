@@ -1,7 +1,7 @@
 # Contrato — `@morningstar/photo-feed`
 
 - Estabilidad: **Stable (MVP)**
-- Versión del paquete: 0.0.1
+- Versión del paquete: 0.0.1 (módulo: 0.4.0)
 - Dueño de prefijos de eventos: `photo:`
 - Dependencias: `@morningstar/core` (única — ADR-0002), `nanoid`
 
@@ -19,19 +19,34 @@ export class PhotoFeedModule implements AppModule {
   readonly version: string
   state: ModuleState
 
-  addPhoto(url: string): Promise<void>
-  editPhoto(photoId: string, input: EditPhotoInput): Promise<void>
-  removePhoto(photoId: string): Promise<void>
+  addPhoto(url: string, actor?: ActorContext): Promise<void>
+  addPhotoFromFile(input: PhotoMediaInput, actor?: ActorContext): Promise<void>
+  editPhoto(photoId: string, input: EditPhotoInput, actor?: ActorContext): Promise<void>
+  removePhoto(photoId: string, actor?: ActorContext): Promise<void>
   listEntries(): Photo[]
 }
 ```
 
+**Enforcement de autorización (ADR-0012, Iteración 7b):** si la composición
+inyecta `context.authorizer`, los comandos operan en modo **fail-closed**:
+
+- Sin `actor` ⇒ `PermissionRequiredError` (no hay operaciones anónimas con
+  autorización activa).
+- Decisión DENY o CONDITIONAL ⇒ `PermissionDeniedError` **antes** de tocar
+  dominio/infraestructura (cero efectos colaterales); CONDITIONAL expone
+  `conditions` (el loop de cumplimiento es del backend).
+- Permisos: `photo:create` (addPhoto/addPhotoFromFile), `photo:edit` y
+  `photo:delete` con `resource: { type: 'photo', id, ownerId }` (el evaluador
+  aplica `-own` / moderator / admin).
+- Sin `authorizer` en el contexto: comportamiento local sin cambios (web
+  actual, tests, dev).
+
 | Método | Precondiciones | Comportamiento | Errores |
 |---|---|---|---|
-| `addPhoto(url)` | módulo inicializado; `url` no vacío y empieza con `http` | Crea el agregado, persiste y emite `photo:added` | `Error('Not Initialized')`, `Error('Invalid photo URL')` |
-| `addPhotoFromFile(input)` | módulo inicializado; `context.media` presente; `input` supera `PHOTO_MEDIA_POLICY` | Valida (dominio) → guarda binario (`MediaStorage`) → agregado + record → emite `photo:added` con `media` | `Error('Not Initialized')`, error explícito si falta `context.media`, errores de validación (MIME/tamaño/vacío) |
-| `editPhoto(id, input)` | módulo inicializado; la foto existe; **la foto no es de media** | Aplica cambios; **si no hay cambios reales, no persiste ni emite evento**; si los hay, persiste y emite `photo:edited` | `Error('Not Initialized')`, `Error('Photo <id> not found')`, `Error('Editing media photos is not supported yet')` |
-| `removePhoto(id)` | módulo inicializado; la foto existe | Elimina, persiste, limpia el binario asociado (best-effort) y emite `photo:removed` | `Error('Not Initialized')`, `Error('Photo <id> not found')` |
+| `addPhoto(url, actor?)` | módulo inicializado; `url` no vacío y empieza con `http`; permiso `photo:create` | Crea el agregado (**stampea `ownerId = actor.userId`**), persiste y emite `photo:added` | `Error('Not Initialized')`, `Error('Invalid photo URL')`, `PermissionRequiredError`, `PermissionDeniedError` |
+| `addPhotoFromFile(input, actor?)` | módulo inicializado; `context.media` presente; `input` supera `PHOTO_MEDIA_POLICY`; permiso `photo:create` | Valida (dominio) → enforcement → guarda binario (`MediaStorage`) → agregado + record → emite `photo:added` con `media` y `ownerId` | `Error('Not Initialized')`, error explícito si falta `context.media`, errores de validación (MIME/tamaño/vacío), `PermissionRequiredError`, `PermissionDeniedError` |
+| `editPhoto(id, input, actor?)` | módulo inicializado; la foto existe; **la foto no es de media**; permiso `photo:edit` sobre el recurso | Enforcement → aplica cambios; **si no hay cambios reales, no persiste ni emite evento**; si los hay, persiste y emite `photo:edited` | `Error('Not Initialized')`, `Error('Photo <id> not found')`, `Error('Editing media photos is not supported yet')`, `PermissionRequiredError`, `PermissionDeniedError` |
+| `removePhoto(id, actor?)` | módulo inicializado; la foto existe; permiso `photo:delete` sobre el recurso | Enforcement → elimina, persiste, limpia el binario asociado (best-effort) y emite `photo:removed` | `Error('Not Initialized')`, `Error('Photo <id> not found')`, `PermissionRequiredError`, `PermissionDeniedError` |
 | `listEntries()` | módulo inicializado | Copia del array de agregados (no permite mutar la colección interna) | `Error('PhotoFeedModule not Initialized')` |
 
 **`init(context)` requiere `context.persistence`** (camino único, ADR-0003):
@@ -59,6 +74,7 @@ export class Photo {
   readonly id: string
   get url(): string              // http(s) o URI de sesión resuelta (efímera); '' si el medio está huérfano
   get media(): MediaRef | undefined  // definido solo en fotos subidas como archivo
+  get ownerId(): string | undefined  // dueño (userId); undefined en fotos legacy (ADR-0012)
   get createdAt(): number
   get updatedAt(): number
   edit(input: EditPhotoInput): PhotoChanges   // lanza en fotos con media (limitación ADR-0004)
@@ -86,6 +102,7 @@ export type PhotoChanges = { url?: FieldChange<string> }
 export interface PhotoRecord extends PersistedRecord {
   readonly url?: string        // fuente http(s)
   readonly media?: MediaRef    // fuente archivo (mutuamente exclusivos)
+  readonly ownerId?: string    // dueño (aditivo 7b); ausente en fotos legacy
   readonly createdAt: number
   readonly updatedAt: number
 }
@@ -108,7 +125,7 @@ Todos con `category: 'domain'`, `source: { moduleId: 'photo-feed', entity: 'phot
 
 | Evento | Cuándo | Payload |
 |---|---|---|
-| `photo:added` | tras agregar y persistir | `{ photoId: string, url: string, addedAt: number, media?: MediaRef }` — `media` es campo aditivo v1 (ADR-0001), presente solo en subidas de archivo; en ese caso `url` es una URI de sesión efímera |
+| `photo:added` | tras agregar y persistir | `{ photoId: string, url: string, addedAt: number, media?: MediaRef, ownerId?: string }` — `media`/`ownerId` son campos aditivos v1 (ADR-0001/0012); con archivo subido, `url` es una URI de sesión efímera |
 | `photo:edited` | tras un edit **con cambios reales** | `{ photoId: string, changes: PhotoChanges }` |
 | `photo:removed` | tras eliminar y persistir | `{ photoId: string, removedAt: number }` |
 

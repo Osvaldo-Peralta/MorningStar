@@ -24,15 +24,17 @@ export class Photo {
   readonly id: string
   #url: string
   #media?: MediaRef
+  #ownerId?: string
   #createdAt: number
   #updatedAt: number
 
-  constructor(id: string, url: string, media?: MediaRef) {
+  constructor(id: string, url: string, media?: MediaRef, ownerId?: string) {
     const now = Date.now()
 
     this.id = id
     this.#url = url
     this.#media = media
+    this.#ownerId = ownerId
     this.#createdAt = now
     this.#updatedAt = now
   }
@@ -45,6 +47,11 @@ export class Photo {
   /** Referencia al binario (solo en fotos subidas como archivo). */
   get media(): MediaRef | undefined {
     return this.#media
+  }
+
+  /** Dueño de la foto (userId). Undefined en fotos legacy pre-ownership (ADR-0012). */
+  get ownerId(): string | undefined {
+    return this.#ownerId
   }
 
   get createdAt(): number {
@@ -80,16 +87,16 @@ export class Photo {
     return changes
   }
 
-  /** Proyección serializable para el repositorio (ADR-0003/0004). */
+  /** Proyección serializable para el repositorio (ADR-0003/0004/0012). */
   toRecord(): PhotoRecord {
     const base = {
       id: this.id,
       createdAt: this.#createdAt,
       updatedAt: this.#updatedAt,
     }
-    return this.#media
-      ? { ...base, media: this.#media }
-      : { ...base, url: this.#url }
+    const source = this.#media ? { media: this.#media } : { url: this.#url }
+    const owner = this.#ownerId !== undefined ? { ownerId: this.#ownerId } : {}
+    return { ...base, ...source, ...owner }
   }
 
   /**
@@ -99,7 +106,7 @@ export class Photo {
    */
   static fromRecord(record: PhotoRecord, resolvedMediaUri = ''): Photo {
     const displayUrl = record.media ? resolvedMediaUri : (record.url ?? '')
-    const photo = new Photo(record.id, displayUrl, record.media)
+    const photo = new Photo(record.id, displayUrl, record.media, record.ownerId)
     photo.#createdAt = record.createdAt
     photo.#updatedAt = record.updatedAt
     return photo

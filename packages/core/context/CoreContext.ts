@@ -8,6 +8,7 @@ import type { CoreEventMap } from "./CoreEventMap.js"
 import type { PersistenceProvider } from "./Persistence.js"
 import type { MediaStorage } from "./MediaStorage.js"
 import type { EmailDelivery } from "./EmailDelivery.js"
+import type { Authorizer } from "./Authorizer.js"
 
 // core/context/CoreContext.ts
 export interface CoreContext<
@@ -34,6 +35,13 @@ export interface CoreContext<
    * en authentication, Fase 4).
    */
   readonly email?: EmailDelivery
+  /**
+   * Autorización de negocio (ADR-0012). Opcional: cuando está presente, los
+   * módulos que implementan enforcement (ej. photo-feed) exigen un
+   * `ActorContext` en sus comandos (fail-closed) y consultan decisiones
+   * ALLOW/DENY/CONDITIONAL antes de tocar el dominio.
+   */
+  readonly authorizer?: Authorizer
   readonly permission: Permissions
   readonly logger: Logger
   readonly config: CoreConfig
