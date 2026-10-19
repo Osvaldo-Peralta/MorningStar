@@ -40,6 +40,7 @@ export type SessionRevokedReason =
   | 'reuse-detected'        // refresh token robado/reutilizado (ADR-0009)
   | 'password-changed'
   | 'password-reset'
+  | 'device-revoked'        // revocación remota por id desde "tus dispositivos" (8b)
 
 /** Información de dispositivo aportada por el llamador en el login. */
 export interface DeviceInfo {

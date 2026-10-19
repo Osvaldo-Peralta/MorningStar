@@ -480,6 +480,35 @@ export class AuthenticationModule implements AppModule {
   }
 
   /**
+   * Revoca UNA sesión por id — UX "tus dispositivos" (Iteración 8b).
+   * Complementa a `logout(token)` (auto-logout con token en mano) y
+   * `logoutUser` (todas): permite cerrar un dispositivo remoto sin conocer
+   * su token (los ids los expone `listSessions`).
+   *
+   * Anti-sondeo: devuelve `false` con la MISMA respuesta si el id no existe,
+   * pertenece a otro usuario, ya estaba revocado o expiró. Emite
+   * `auth:session-revoked` con `reason: 'device-revoked'`.
+   */
+  async revokeSessionById(userId: string, sessionId: string): Promise<boolean> {
+    if (!this.sessions || !this.events) throw new Error('Not Initialized')
+
+    const now = Date.now()
+    const all = await this.sessions.list()
+    const record = all.find((r) => r.id === sessionId)
+    if (
+      !record ||
+      record.userId !== userId ||
+      record.revokedAt !== undefined ||
+      now > record.expiresAt
+    ) {
+      return false
+    }
+
+    await this.revokeSession(record, 'device-revoked')
+    return true
+  }
+
+  /**
    * Invalidación masiva global — primitiva de ACTIVE_DEFENSE (Baseline v1.0
    * §2). Revoca TODAS las sesiones activas del sistema y emite un único
    * evento agregado (no uno por sesión: puede ser masivo).

@@ -42,6 +42,7 @@ export class AuthenticationModule implements AppModule {
   validateSession(token: string): Promise<SessionInfo | null>
   logout(token: string): Promise<boolean>
   logoutUser(userId: string): Promise<number>
+  revokeSessionById(userId: string, sessionId: string): Promise<boolean>
   invalidateAllSessions(reason: string): Promise<number>
   listSessions(userId: string): Promise<SessionInfo[]>
 }
@@ -72,6 +73,7 @@ export interface LoginResult {
 | `validateSession(token)` | módulo inicializado | Devuelve `SessionInfo` si la sesión es válida; `null` si desconocida/expirada/revocada (no revela cuál). Actualiza `lastSeenAt` | `Error('Not Initialized')` |
 | `logout(token)` | — | Revoca la sesión (`reason: 'logout'`); `false` si no existe o ya estaba revocada | — |
 | `logoutUser(userId)` | — | Revoca todas las sesiones activas del usuario (`reason: 'logout-all'`); devuelve el conteo | — |
+| `revokeSessionById(userId, sessionId)` | módulo inicializado | Revoca UNA sesión por id (UX "tus dispositivos", 8b); `reason: 'device-revoked'`; **anti-sondeo**: `false` idéntico si el id no existe, es de otro usuario, ya estaba revocado o expiró | — |
 | `invalidateAllSessions(reason)` | — | **Primitiva ACTIVE_DEFENSE** (Baseline §2): revoca todas las sesiones activas del sistema; devuelve el conteo; emite un único evento agregado | — |
 | `listSessions(userId)` | módulo inicializado | Sesiones activas del usuario (UX "tus dispositivos"); nunca expone tokens | — |
 | `refresh(refreshToken)` | RT válido (no consumido/revocado/expirado); sesión asociada no revocada; cuenta `ACTIVE` | **Rotación completa** (ADR-0009): par nuevo (sesión + RT), sesión anterior revocada (`rotated`), RT anterior consumido con lineage; emite `auth:token-refreshed` + `auth:session-issued` | `InvalidRefreshTokenError`, `RefreshTokenReuseError` (robo: revoca la sesión actual de la familia + emite `auth:refresh-reuse-detected`), `AccountNotActiveError` |
@@ -96,7 +98,8 @@ Garantías de sesiones (ADR-0008):
   inyectable; expiración lazy en `validateSession`.
 - Revocación inmediata en tres niveles: sesión / usuario / global. Motivos
   (`SessionRevokedReason`): `logout`, `logout-all`, `mass-invalidation`,
-  `rotated`, `reuse-detected`, `password-changed`, `password-reset`.
+  `rotated`, `reuse-detected`, `password-changed`, `password-reset`,
+  `device-revoked` (8b: revocación por id desde "tus dispositivos").
 - **Refresh con rotación completa** (ADR-0009): TTL 30 días por defecto
   (`SESSION_DEFAULTS.refreshTokenTtlMs`); reuso detectado ⇒ revocación de la
   sesión actual de la familia + evento de seguridad.
@@ -167,7 +170,7 @@ Todos con `category: 'domain'`, `source: { moduleId: 'authentication', entity: '
 | `auth:login-failed` | cualquier rechazo | `{ userId?, reason: 'invalid-credentials' \| 'locked' \| 'account-not-active', failedAttempts?, accountStatus? }` — sin userId ni identifier cuando el usuario no existe |
 | `auth:account-locked` | al alcanzarse el umbral de fallos | `{ userId, lockedUntil }` |
 | `auth:session-issued` | tras emitir sesión en login **y en refresh** | `{ userId, sessionId, deviceFingerprint, expiresAt }` |
-| `auth:session-revoked` | por `logout` / `logoutUser` / rotación / reuso / cambio de contraseña | `{ sessionId, userId?, reason }` |
+| `auth:session-revoked` | por `logout` / `logoutUser` / `revokeSessionById` / rotación / reuso / cambio de contraseña / reset | `{ sessionId, userId?, reason }` |
 | `auth:sessions-invalidated` | por `invalidateAllSessions` (uno agregado, no por sesión) | `{ count, reason }` |
 | `auth:token-refreshed` | tras rotación exitosa en `refresh` | `{ userId, sessionId }` (sesión nueva) |
 | `auth:refresh-reuse-detected` | al presentarse un RT consumido (posible robo) | `{ userId, sessionId }` (sesión revocada defensivamente) |
@@ -217,6 +220,7 @@ para audit, no se borran).
   email/reset pendientes (un único job futuro).
 - Cambio de email con re-verificación: deuda de identity.
 - UI web (ADR-0013): login/registro/MFA-challenge y sesión persistente
-  implementados (8a). Pendientes para 8b: gestión MFA con QR de enrolamiento,
-  UI de reset de contraseña y pantalla "tus dispositivos" (listSessions +
-  logout por dispositivo).
+  implementados (8a); gestión MFA con QR de enrolamiento + backup codes,
+  cambio/reset de contraseña y pantalla "tus dispositivos" con
+  `revokeSessionById` implementados (8b, ADR-0014). Pendiente: regeneración
+  de backup codes desde la UI (requiere backend, ver deuda arriba).

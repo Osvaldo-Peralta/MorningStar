@@ -5,6 +5,7 @@ import { PhotoCard } from './photo-feed/PhotoCard';
 import type { Photo } from '@morningstar/photo-feed';
 import { PHOTO_MEDIA_POLICY } from '@morningstar/photo-feed';
 import { Modal } from './ui/Modal';
+import { SecurityModal } from './auth/SecurityModal';
 
 type AddMode = 'file' | 'url';
 
@@ -35,6 +36,9 @@ export const PhotoFeed: React.FC = () => {
   const [tempUrl, setTempUrl] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Modal de Seguridad (8b): MFA, contraseña y dispositivos
+  const [isSecurityOpen, setIsSecurityOpen] = useState(false);
 
   const refreshPhotos = useCallback(() => { setPhotos(photoFeed.listEntries()); }, [photoFeed]);
 
@@ -154,6 +158,7 @@ export const PhotoFeed: React.FC = () => {
               <p className="text-zinc-500 text-xs">@{user.username}</p>
             </div>
           )}
+          <button onClick={() => setIsSecurityOpen(true)} aria-label="Seguridad" className="bg-white/5 text-zinc-300 text-sm px-5 py-3 rounded-full hover:bg-white/10 transition-colors">Seguridad</button>
           <button onClick={() => setIsAdding(true)} className="bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-slate-200 active:scale-95 active:animate-button-press transition-all duration-300 hover:shadow-[0_8px_30px_rgb(255,255,255,0.12)]">UPLOAD</button>
           <button onClick={() => void logout()} aria-label="Cerrar sesión" className="bg-white/5 text-zinc-300 text-sm px-5 py-3 rounded-full hover:bg-white/10 transition-colors">Salir</button>
         </div>
@@ -270,6 +275,9 @@ export const PhotoFeed: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Modal: Seguridad (8b) — MFA, contraseña, dispositivos */}
+      <SecurityModal isOpen={isSecurityOpen} onClose={() => setIsSecurityOpen(false)} />
     </div>
   );
 };

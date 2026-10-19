@@ -170,6 +170,53 @@ describe('AuthenticationModule — sesiones', () => {
     expect(await auth.validateSession(otherSession.session.token)).not.toBeNull()
   })
 
+  it('revokeSessionById revoca la sesión propia activa y emite auth:session-revoked', async () => {
+    const user = await activeUser('revoker1')
+    const a = await auth.login('revoker1', PASSWORD, { fingerprint: 'dev-a' })
+    const b = await auth.login('revoker1', PASSWORD, { fingerprint: 'dev-b' })
+
+    expect(await auth.revokeSessionById(user.id, a.session.sessionId)).toBe(true)
+    expect(await auth.validateSession(a.session.token)).toBeNull()
+    // La otra sesión del mismo usuario sobrevive
+    expect(await auth.validateSession(b.session.token)).not.toBeNull()
+    expect(await auth.listSessions(user.id)).toHaveLength(1)
+
+    const revoked = emitted.find((e) => e.name === 'auth:session-revoked')
+    expect(revoked?.payload).toMatchObject({
+      sessionId: a.session.sessionId,
+      userId: user.id,
+      reason: 'device-revoked',
+    })
+  })
+
+  it('revokeSessionById: false para id desconocido, de otro usuario o ya revocada (sin sondas)', async () => {
+    const owner = await activeUser('owner001')
+    const intruder = await activeUser('intruder')
+    const mine = await auth.login('owner001', PASSWORD)
+
+    // Id inexistente y sesión ajena: mismo false, sin efectos colaterales
+    expect(await auth.revokeSessionById(owner.id, 'id-inventado')).toBe(false)
+    expect(await auth.revokeSessionById(intruder.id, mine.session.sessionId)).toBe(false)
+    expect(await auth.validateSession(mine.session.token)).not.toBeNull()
+
+    // Revocación válida y doble revocación
+    expect(await auth.revokeSessionById(owner.id, mine.session.sessionId)).toBe(true)
+    expect(await auth.revokeSessionById(owner.id, mine.session.sessionId)).toBe(false)
+  })
+
+  it('revokeSessionById: false sobre sesión expirada (no emite evento)', async () => {
+    const user = await activeUser('expiring2')
+    const shortAuth = makeAuth({ accessTokenTtlMs: 30 })
+    await shortAuth.init(context)
+
+    const { session } = await shortAuth.login('expiring2', PASSWORD)
+    await new Promise((resolve) => setTimeout(resolve, 50))
+
+    emitted.length = 0
+    expect(await shortAuth.revokeSessionById(user.id, session.sessionId)).toBe(false)
+    expect(emitted.filter((e) => e.name === 'auth:session-revoked')).toHaveLength(0)
+  })
+
   it('invalidateAllSessions: primitiva ACTIVE_DEFENSE revoca todo y emite evento agregado', async () => {
     await activeUser('victim01')
     await activeUser('victim02')

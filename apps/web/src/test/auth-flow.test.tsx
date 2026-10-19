@@ -1,93 +1,19 @@
 // Tests de integración web (ADR-0013): módulos REALES (identity,
 // authentication, authorization, photo-feed) con adaptadores InMemory sobre
 // jsdom. Prueban la plataforma de punta a punta a través de la UI.
+// Harness compartido en ./helpers (8b).
 import { describe, it, expect } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import React from 'react'
-import App from '../App'
-import { AppProvider, useApp, type AppContextType } from '../context/AppContext'
-import { AuthProvider } from '../context/AuthContext'
 import { TotpService } from '@morningstar/authentication'
-
-let app: AppContextType | null = null
-
-/** Captura los módulos reales para aserciones y operaciones de soporte. */
-const Capture: React.FC = () => {
-  app = useApp()
-  return null
-}
-
-const renderApp = () => {
-  app = null
-  return render(
-    <AppProvider>
-      <AuthProvider>
-        <Capture />
-        <App />
-      </AuthProvider>
-    </AppProvider>
-  )
-}
-
-const modules = () => {
-  if (!app) throw new Error('AppContext no disponible')
-  return app
-}
-
-const USER = {
-  username: 'osvaldo42',
-  email: 'osvaldo@test.dev',
-  displayName: 'Osvaldo Peralta',
-  password: 'ClaveSegura123!',
-}
-
-/** Registra una cuenta por UI y la deja en la pantalla 'pending'. */
-const registerViaUi = async (user: ReturnType<typeof userEvent.setup>) => {
-  await user.click(await screen.findByRole('tab', { name: /crear cuenta/i }))
-  await user.type(screen.getByPlaceholderText(/usuario \(a-z/i), USER.username)
-  await user.type(screen.getByPlaceholderText(/email/i), USER.email)
-  await user.type(screen.getByPlaceholderText(/nombre visible/i), USER.displayName)
-  await user.type(screen.getByPlaceholderText(/contraseña \(mín/i), USER.password)
-  await user.type(screen.getByPlaceholderText(/repite la contraseña/i), USER.password)
-  await user.click(screen.getByRole('button', { name: /crear cuenta/i }))
-  await screen.findByLabelText(/verificación de email/i)
-}
-
-/** Abre el Dev Outbox, extrae el token del email y verifica la cuenta por UI. */
-const verifyViaOutbox = async (user: ReturnType<typeof userEvent.setup>) => {
-  const outbox = await screen.findByTestId('dev-outbox')
-  await user.click(outbox.querySelector('button')!)
-
-  const copyButton = await waitFor(() => {
-    const found = outbox.querySelector<HTMLButtonElement>('button[title="Copiar token"]')
-    if (!found) throw new Error('token aún no visible en el outbox')
-    return found
-  }, { timeout: 4000 })
-
-  await user.type(screen.getByPlaceholderText(/token de verificación/i), copyButton.textContent!.trim())
-  await user.click(screen.getByRole('button', { name: /verificar cuenta/i }))
-  await screen.findByText(/cuenta verificada/i)
-}
-
-const loginViaUi = async (user: ReturnType<typeof userEvent.setup>, identifier = USER.username, password = USER.password) => {
-  const identifierInput = screen.getByPlaceholderText(/usuario o email/i)
-  const passwordInput = screen.getByPlaceholderText(/^contraseña$/i)
-  await user.clear(identifierInput)
-  await user.clear(passwordInput)
-  await user.type(identifierInput, identifier)
-  await user.type(passwordInput, password)
-  await user.click(screen.getByRole('button', { name: /^entrar$/i }))
-}
-
-/** Flujo completo: registro → verificación → login. Termina autenticado. */
-const fullSignUpAndLogin = async (user: ReturnType<typeof userEvent.setup>) => {
-  await screen.findByRole('tablist', { name: /modo de acceso/i })
-  await registerViaUi(user)
-  await verifyViaOutbox(user)
-  await loginViaUi(user)
-  await screen.findByTestId('current-user', {}, { timeout: 15_000 })
-}
+import {
+  renderApp,
+  modules,
+  USER,
+  registerViaUi,
+  loginViaUi,
+  fullSignUpAndLogin,
+} from './helpers'
 
 describe('Autenticación web (integración real)', () => {
   it('anónimo: muestra el AuthScreen con acceso y registro', async () => {
@@ -177,8 +103,7 @@ describe('Autenticación web (integración real)', () => {
     await waitFor(() => {
       const photos = modules().photoFeed.listEntries()
       expect(photos).toHaveLength(1)
-      const snapshot = app && photos[0]
-      expect(snapshot?.ownerId).toBeTruthy()
+      expect(photos[0]?.ownerId).toBeTruthy()
     }, { timeout: 10_000 })
 
     const owner = await modules().identity.getByUsername(USER.username)

@@ -1,27 +1,32 @@
 // web/src/components/auth/AuthScreen.tsx
 /*
---- Máquina de estados de autenticación: login | register | mfa | pending.
+--- Máquina de estados de autenticación: login | register | mfa | pending
+--- | forgot | reset (8b: reset de contraseña self-service por email).
 --- Errores inline (nunca alert), estilo glass consistente con los modales.
 */
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth, type AuthOutcome } from '../../context/AuthContext';
+import {
+  inputClass,
+  primaryButtonClass,
+  linkButtonClass,
+  ErrorNote,
+  InfoNote,
+} from './notes';
 
-type Mode = 'login' | 'register' | 'mfa' | 'pending';
-
-const inputClass =
-  'w-full bg-white/5 border border-white/10 rounded-2xl px-5 py-4 text-white focus:outline-none focus:ring-2 focus:ring-white/10 transition-all placeholder:text-zinc-500';
-
-const primaryButtonClass =
-  'w-full px-6 py-4 bg-white text-black font-bold rounded-full hover:scale-[1.01] active:scale-95 transition-all disabled:bg-zinc-800 disabled:text-zinc-500 disabled:hover:scale-100';
-
-const ErrorNote: React.FC<{ message: string | null }> = ({ message }) =>
-  message ? <p className="text-sm text-red-400 px-2" role="alert">{message}</p> : null;
-
-const InfoNote: React.FC<{ message: string | null }> = ({ message }) =>
-  message ? <p className="text-sm text-emerald-300 px-2" role="status">{message}</p> : null;
+type Mode = 'login' | 'register' | 'mfa' | 'pending' | 'forgot' | 'reset';
 
 export const AuthScreen: React.FC = () => {
-  const { login, register, completeMfa, confirmEmail } = useAuth();
+  const {
+    login,
+    register,
+    completeMfa,
+    confirmEmail,
+    notice,
+    clearNotice,
+    requestPasswordReset,
+    resetPassword,
+  } = useAuth();
 
   const [mode, setMode] = useState<Mode>('login');
   const [busy, setBusy] = useState(false);
@@ -38,6 +43,19 @@ export const AuthScreen: React.FC = () => {
   const [mfaToken, setMfaToken] = useState('');
   const [mfaCode, setMfaCode] = useState('');
   const [verificationToken, setVerificationToken] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState('');
+
+  // Avisos transitorios del contexto (p. ej. "Contraseña cambiada…", 8b):
+  // se muestran una vez en el modo login y se consumen.
+  useEffect(() => {
+    if (notice) {
+      setInfo(notice);
+      setError(null);
+      clearNotice();
+    }
+  }, [notice, clearNotice]);
 
   const handleOutcome = (outcome: AuthOutcome): boolean => {
     setBusy(false);
@@ -110,6 +128,58 @@ export const AuthScreen: React.FC = () => {
     }
   };
 
+  const submitForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    const result = await requestPasswordReset(identifier.trim());
+    setBusy(false);
+    if (result.ok) {
+      // Anti-enumeración: el mismo mensaje exista o no la cuenta.
+      setMode('reset');
+      setResetToken('');
+      setNewPassword('');
+      setNewPasswordConfirm('');
+      setInfo(
+        'Si la cuenta existe, enviamos un email con instrucciones (en dev: mira el Dev Outbox).'
+      );
+    } else {
+      setError(result.message);
+    }
+  };
+
+  const submitReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    if (newPassword !== newPasswordConfirm) {
+      setError('Las contraseñas no coinciden');
+      return;
+    }
+    setBusy(true);
+    const result = await resetPassword(resetToken.trim(), newPassword);
+    setBusy(false);
+    if (result.ok) {
+      // resetPassword revoca todas las sesiones del usuario (ADR-0009)
+      setResetToken('');
+      setNewPassword('');
+      setNewPasswordConfirm('');
+      setMode('login');
+      setInfo('Contraseña actualizada. Inicia sesión con tu nueva contraseña.');
+    } else {
+      setError(result.message);
+    }
+  };
+
+  const backToLogin = (label = 'Volver al inicio de sesión') => (
+    <button
+      type="button"
+      onClick={() => { setMode('login'); setError(null); }}
+      className={linkButtonClass}
+    >
+      {label}
+    </button>
+  );
+
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center p-6">
       <div className="w-full max-w-sm bg-white/3 backdrop-blur-3xl rounded-[2.5rem] p-10 border border-white/10 shadow-[0_20px_50px_rgba(0,0,0,0.5)]">
@@ -149,6 +219,13 @@ export const AuthScreen: React.FC = () => {
             <button type="submit" className={primaryButtonClass} disabled={busy || !identifier.trim() || !password}>
               {busy ? 'ENTRANDO…' : 'ENTRAR'}
             </button>
+            <button
+              type="button"
+              onClick={() => { setMode('forgot'); setError(null); setInfo(null); }}
+              className={linkButtonClass}
+            >
+              ¿Olvidaste tu contraseña?
+            </button>
           </form>
         )}
 
@@ -184,7 +261,7 @@ export const AuthScreen: React.FC = () => {
               {busy ? 'VERIFICANDO…' : 'VERIFICAR'}
             </button>
             <button type="button" onClick={() => { setMode('login'); setError(null); }}
-              className="w-full text-zinc-500 text-sm hover:text-white transition-colors">
+              className={linkButtonClass}>
               Volver
             </button>
           </form>
@@ -203,10 +280,45 @@ export const AuthScreen: React.FC = () => {
             <button type="submit" className={primaryButtonClass} disabled={busy || !verificationToken.trim()}>
               {busy ? 'VERIFICANDO…' : 'VERIFICAR CUENTA'}
             </button>
-            <button type="button" onClick={() => { setMode('login'); setError(null); }}
-              className="w-full text-zinc-500 text-sm hover:text-white transition-colors">
-              Volver al inicio de sesión
+            {backToLogin()}
+          </form>
+        )}
+
+        {mode === 'forgot' && (
+          <form onSubmit={submitForgot} className="space-y-4" aria-label="Restablecer contraseña">
+            <p className="text-zinc-400 text-sm px-2">
+              Te enviaremos un email con un enlace de restablecimiento (un solo uso, expira en
+              1 hora). En desarrollo, el token aparece en el <span className="text-white">Dev Outbox</span>.
+            </p>
+            <input className={inputClass} placeholder="Usuario o email" value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)} autoFocus required />
+            <ErrorNote message={error} />
+            <button type="submit" className={primaryButtonClass} disabled={busy || !identifier.trim()}>
+              {busy ? 'ENVIANDO…' : 'ENVIAR INSTRUCCIONES'}
             </button>
+            {backToLogin()}
+          </form>
+        )}
+
+        {mode === 'reset' && (
+          <form onSubmit={submitReset} className="space-y-4" aria-label="Nueva contraseña">
+            <p className="text-zinc-400 text-sm px-2">
+              Pega el token del email (en dev: cópialo del <span className="text-white">Dev Outbox</span>)
+              y elige tu nueva contraseña. Se cerrarán las sesiones de todos tus dispositivos.
+            </p>
+            <InfoNote message={info} />
+            <input className={inputClass} placeholder="Token de reset" value={resetToken}
+              onChange={(e) => setResetToken(e.target.value)} autoFocus required />
+            <input className={inputClass} type="password" placeholder="Nueva contraseña (mín. 8)" value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)} autoComplete="new-password" required />
+            <input className={inputClass} type="password" placeholder="Repite la nueva contraseña" value={newPasswordConfirm}
+              onChange={(e) => setNewPasswordConfirm(e.target.value)} autoComplete="new-password" required />
+            <ErrorNote message={error} />
+            <button type="submit" className={primaryButtonClass}
+              disabled={busy || !resetToken.trim() || !newPassword || !newPasswordConfirm}>
+              {busy ? 'RESTABLECIENDO…' : 'RESTABLECER CONTRASEÑA'}
+            </button>
+            {backToLogin()}
           </form>
         )}
       </div>
