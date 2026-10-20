@@ -93,9 +93,9 @@ export interface SecurityContext {
 | Rol | Permisos |
 |---|---|
 | `guest` | — (cuentas no-ACTIVE) |
-| `member` *(default ACTIVE)* | `photo:create/list/view`, `photo:edit-own`, `photo:delete-own`, `profile:view`, `profile:edit-own` |
+| `member` *(default ACTIVE)* | `photo:create/list/view`, `photo:edit-own`, `photo:delete-own`, `profile:view`, `profile:edit-own`, `msg:send`, `msg:read`, `msg:edit-own`, `msg:delete-own` |
 | `creator` | `media:publish`, `media:edit-own`, `media:delete-own`, `content:publish` |
-| `moderator` | `photo:hide`, `photo:delete`, `content:review`, `user:suspend`¹ |
+| `moderator` | `photo:hide`, `photo:delete`, `content:review`, `user:suspend`¹, `msg:delete` |
 | `admin` | `*` |
 
 ¹ Sensible: su decisión es CONDITIONAL `require-mfa`.

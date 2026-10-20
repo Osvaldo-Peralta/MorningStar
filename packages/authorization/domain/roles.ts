@@ -32,6 +32,11 @@ export const BUILTIN_ROLES: readonly RoleDefinition[] = [
       'photo:delete-own',
       'profile:view',
       'profile:edit-own',
+      // Messaging (Fase 6, 9a): enviar/leer + edición y borrado de lo propio
+      'msg:send',
+      'msg:read',
+      'msg:edit-own',
+      'msg:delete-own',
     ],
     description: 'Default de toda cuenta ACTIVE',
   },
@@ -42,7 +47,7 @@ export const BUILTIN_ROLES: readonly RoleDefinition[] = [
   },
   {
     name: 'moderator',
-    permissions: ['photo:hide', 'photo:delete', 'content:review', 'user:suspend'],
+    permissions: ['photo:hide', 'photo:delete', 'content:review', 'user:suspend', 'msg:delete'],
     description: 'Moderación de contenido y usuarios',
   },
   {

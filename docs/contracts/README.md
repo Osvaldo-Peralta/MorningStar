@@ -14,6 +14,7 @@ aquí (ni en el `index.ts` del paquete), es interno y puede cambiar sin aviso.
 | `@morningstar/identity` | [identity.md](./identity.md) | `identity:` | Stable |
 | `@morningstar/authentication` | [authentication.md](./authentication.md) | `auth:` | Stable |
 | `@morningstar/authorization` | [authorization.md](./authorization.md) | `authz:` | Experimental |
+| `@morningstar/messaging` | [messaging.md](./messaging.md) | `msg:` | Experimental |
 | `@morningstar/persistence-node` | [README del paquete](../../packages/persistence-node/README.md) | — (infraestructura) | Experimental |
 
 Plantilla para módulos nuevos: [TEMPLATE.md](./TEMPLATE.md)
@@ -29,6 +30,8 @@ Un prefijo pertenece a un único módulo (ADR-0001). Reservados:
 | `identity:` | identity | en uso |
 | `auth:` | authentication | en uso |
 | `authz:` | authorization | en uso |
+| `msg:` | messaging | en uso |
+| `community:` | Comunidades (Fase 6) | reservado |
 | `media:` | Media Storage (Fase 2) | reservado |
 | `audit:` | Audit Trail (Fase 8) | reservado |
 

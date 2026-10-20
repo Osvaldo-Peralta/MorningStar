@@ -127,6 +127,50 @@ describe('DefaultPolicyEvaluator — reglas 3-5 (roles, ownership, sensibles)', 
   })
 })
 
+describe('DefaultPolicyEvaluator — permisos de messaging (Fase 6, 9a)', () => {
+  it('member: msg:send y msg:read ALLOW', () => {
+    expect(evaluator.evaluate({ permission: 'msg:send' }, baseContext())).toMatchObject({
+      decision: 'ALLOW',
+      matchedRole: 'member',
+    })
+    expect(evaluator.evaluate({ permission: 'msg:read' }, baseContext())).toMatchObject({
+      decision: 'ALLOW',
+    })
+  })
+
+  it('ownership: member edita/borra su mensaje (ALLOW) pero no el ajeno (DENY)', () => {
+    const own = { permission: 'msg:edit', resource: { type: 'message', id: 'm1', ownerId: 'user-1' } }
+    const foreign = { permission: 'msg:edit', resource: { type: 'message', id: 'm2', ownerId: 'user-2' } }
+    expect(evaluator.evaluate(own, baseContext())).toMatchObject({ decision: 'ALLOW', matchedRole: 'member' })
+    expect(evaluator.evaluate(foreign, baseContext())).toMatchObject({ decision: 'DENY' })
+
+    const ownDelete = { permission: 'msg:delete', resource: { type: 'message', id: 'm1', ownerId: 'user-1' } }
+    const foreignDelete = { permission: 'msg:delete', resource: { type: 'message', id: 'm2', ownerId: 'user-2' } }
+    expect(evaluator.evaluate(ownDelete, baseContext())).toMatchObject({ decision: 'ALLOW' })
+    expect(evaluator.evaluate(foreignDelete, baseContext())).toMatchObject({ decision: 'DENY' })
+  })
+
+  it('moderator: msg:delete ajeno ALLOW (moderación plena); msg:edit ajeno sigue DENY', () => {
+    const foreign = { permission: 'msg:delete', resource: { type: 'message', id: 'm2', ownerId: 'user-2' } }
+    expect(
+      evaluator.evaluate(foreign, baseContext({ roles: ['member', 'moderator'] }))
+    ).toMatchObject({ decision: 'ALLOW', matchedRole: 'moderator' })
+
+    const foreignEdit = { permission: 'msg:edit', resource: { type: 'message', id: 'm2', ownerId: 'user-2' } }
+    expect(
+      evaluator.evaluate(foreignEdit, baseContext({ roles: ['member', 'moderator'] }))
+    ).toMatchObject({ decision: 'DENY' })
+  })
+
+  it('guest: msg:* todo DENY', () => {
+    for (const permission of ['msg:send', 'msg:read', 'msg:edit', 'msg:delete']) {
+      expect(
+        evaluator.evaluate({ permission }, baseContext({ roles: ['guest'] }))
+      ).toMatchObject({ decision: 'DENY' })
+    }
+  })
+})
+
 describe('DefaultPolicyEvaluator — configuración', () => {
   it('extraRoles amplían el registro; colisión con built-in lanza', () => {
     const custom = new DefaultPolicyEvaluator({

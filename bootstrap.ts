@@ -25,6 +25,7 @@ import {
   TotpService,
 } from '@morningstar/authentication'
 import { AuthorizationModule } from '@morningstar/authorization'
+import { MessagingModule } from '@morningstar/messaging'
 
 async function bootstrap() {
   // 1. Infraestructura
@@ -38,6 +39,7 @@ async function bootstrap() {
   const runtimeLogger = new RuntimeLoggerModule()
   const photoFeed = new PhotoFeedModule()
   const identity = new IdentityModule()
+  const messaging = new MessagingModule()
 
   const authentication = new AuthenticationModule({
     // Demo: iteraciones reducidas para un bootstrap rápido; en producción se
@@ -134,6 +136,10 @@ async function bootstrap() {
   await registry.init(authorization.id)
   await registry.activate(authorization.id)
 
+  registry.register(messaging)
+  await registry.init(messaging.id)
+  await registry.activate(messaging.id)
+
   // 5a. Identity (Fase 3): registro → verificación de email → ACTIVE
   const user = await identity.registerUser({
     username: 'OsvaldoDev',
@@ -215,6 +221,52 @@ async function bootstrap() {
   }
 
   console.log('Photos Initialized:', photoFeed.listEntries().length)
+
+  // 5e. Messaging (Fase 6, 9a): DM idempotente + grupo, con actor real y
+  //     enforcement (authorizer activo ⇒ fail-closed, ADR-0012/0015)
+  const secondUser = await identity.registerUser({
+    username: 'lunaDev',
+    email: 'luna@morningstar.dev',
+    displayName: 'Luna Star',
+  })
+  await identity.requestEmailVerification(secondUser.id)
+  const secondVerificationToken = emailDelivery.outbox.at(-1)!.body.match(/token=([A-Za-z0-9_-]+)/)![1]
+  await identity.confirmEmail(secondVerificationToken)
+
+  const dm = await messaging.getOrCreateDirectConversation(secondUser.id, actor)
+  const dmAgain = await messaging.getOrCreateDirectConversation(secondUser.id, actor)
+  console.log('DM idempotente por par:', dm.conversationId === dmAgain.conversationId)
+
+  const msg1 = await messaging.sendMessage(dm.conversationId, 'Hola Luna! Bienvenida a messaging', actor)
+  await messaging.sendMessage(dm.conversationId, 'Segundo mensaje', actor)
+  await messaging.editMessage(msg1.messageId, 'Hola Luna! Bienvenida (corregido)', actor)
+
+  const group = await messaging.createGroupConversation(
+    { title: 'Equipo Fundador', participantIds: [secondUser.id] },
+    actor
+  )
+  const spam = await messaging.sendMessage(group.conversationId, 'comprar cripto ya', actor)
+  await messaging.deleteMessage(spam.messageId, actor) // soft delete: tombstone
+
+  const dmPage = await messaging.listMessages(dm.conversationId, { limit: 10 }, actor)
+  console.log(
+    'Mensajes DM:',
+    dmPage.messages.map((m) => `${m.seq}:${m.body}${m.editedAt ? ' (editado)' : ''}`).join(' | ')
+  )
+  const groupPage = await messaging.listMessages(group.conversationId, {}, actor)
+  console.log(
+    'Grupo con tombstone:',
+    `body='${groupPage.messages[0]!.body}' deleted=${groupPage.messages[0]!.deletedAt !== undefined}`
+  )
+
+  try {
+    // Sesión inválida ⇒ el authorizer DENIEGA antes de tocar el dominio
+    await messaging.listMessages(dm.conversationId, {}, { sessionToken: 'token-invalida', userId: 'user-fantasma' })
+  } catch (err) {
+    console.log('Intruso sin sesión rechazado (fail-closed):', (err as Error).name)
+  }
+
+  console.log('Conversaciones de Osvaldo:', (await messaging.listConversations(actor)).length)
 }
 
 bootstrap().catch(err => {

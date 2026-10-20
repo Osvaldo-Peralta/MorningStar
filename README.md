@@ -50,6 +50,7 @@ packages/
   identity/             # Módulo de dominio: usuarios, estados y tipos de cuenta (Fase 3)
   authentication/       # Módulo de dominio: credenciales, sesiones, refresh, MFA (Fase 4)
   authorization/        # Módulo de dominio: roles, permisos y evaluación ALLOW/DENY/CONDITIONAL (Fase 5)
+  messaging/            # Módulo de dominio: conversaciones 1:1/grupales y mensajes (Fase 6)
   runtime-logger/       # Módulo pasivo de logging basado en eventos
   persistence-node/     # Adaptadores de persistencia y medios para Node
 apps/

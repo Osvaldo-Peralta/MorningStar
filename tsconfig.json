@@ -14,6 +14,7 @@
     { "path": "./packages/persistence-node" },
     { "path": "./packages/identity" },
     { "path": "./packages/authentication" },
-    { "path": "./packages/authorization" }
+    { "path": "./packages/authorization" },
+    { "path": "./packages/messaging" }
   ]
 }
